@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import { useBalanceEngine } from '@/hooks/useBalanceEngine';
 import { formatCurrency } from '@/utils/currency';
 import { AccountType, Account } from '@/types';
-import { ACCOUNT_TYPE_INFO } from '@/constants/defaults';
+import { ACCOUNT_TYPE_INFO, mapLegacyTypeToAccountType } from '@/constants/defaults';
 
 
 // Zod schema for account form - dynamic based on type
@@ -95,7 +95,6 @@ export function AccountsPage() {
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<AccountFormValues>({
-
     resolver: zodResolver(accountFormSchema as any),
     defaultValues: {
       name: '',
@@ -103,7 +102,18 @@ export function AccountsPage() {
       openingBalance: 0,
       openingBalanceDate: '',
       description: '',
-    }
+      bankName: '',
+      accountNumber: '',
+      branch: '',
+      ifsc: '',
+      cardNumber: '',
+      creditLimit: undefined,
+      billingDate: '',
+      dueDate: '',
+      provider: '',
+      linkedAccountId: '',
+      upiId: '',
+    } as any
   });
 
   const selectedFormType = watch('accountType');
@@ -149,35 +159,57 @@ export function AccountsPage() {
 
   const openAddDialog = () => {
     setEditingId(null);
-    reset({ name: '', accountType: 'bank_account', openingBalance: 0, openingBalanceDate: '', description: '' });
+    reset({
+      name: '',
+      accountType: 'bank_account',
+      openingBalance: 0,
+      openingBalanceDate: '',
+      description: '',
+      bankName: '',
+      accountNumber: '',
+      branch: '',
+      ifsc: '',
+      cardNumber: '',
+      creditLimit: undefined,
+      billingDate: '',
+      dueDate: '',
+      provider: '',
+      linkedAccountId: '',
+      upiId: '',
+    } as any);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (id: string) => {
-    const acc = accounts.find(a => a.id === id);
-    if (!acc) return;
-    setEditingId(id);
-    
-    reset({
-      name: acc.name,
-      accountType: acc.accountType,
-      openingBalance: acc.openingBalance || 0,
-      openingBalanceDate: acc.openingBalanceDate || '',
-      description: acc.description || '',
-      ...(acc.bankName && { bankName: acc.bankName }),
-      ...(acc.accountNumber && { accountNumber: acc.accountNumber }),
-      ...(acc.branch && { branch: acc.branch }),
-      ...(acc.ifsc && { ifsc: acc.ifsc }),
-      ...(acc.cardNumber && { cardNumber: acc.cardNumber }),
-      ...(acc.creditLimit && { creditLimit: acc.creditLimit }),
-      ...(acc.billingDate && { billingDate: acc.billingDate }),
-      ...(acc.dueDate && { dueDate: acc.dueDate }),
-      ...(acc.provider && { provider: acc.provider }),
-      ...(acc.linkedAccountId && { linkedAccountId: acc.linkedAccountId }),
-      ...(acc.upiId && { upiId: acc.upiId }),
-    } as any);
-    
-    setIsDialogOpen(true);
+    try {
+      const acc = accounts.find(a => a.id === id);
+      if (!acc) return;
+      setEditingId(id);
+      
+      reset({
+        name: acc.name,
+        accountType: acc.accountType || mapLegacyTypeToAccountType(acc.type) || 'bank_account',
+        openingBalance: acc.openingBalance || 0,
+        openingBalanceDate: acc.openingBalanceDate || '',
+        description: acc.description || '',
+        bankName: acc.bankName || '',
+        accountNumber: acc.accountNumber || '',
+        branch: acc.branch || '',
+        ifsc: acc.ifsc || '',
+        cardNumber: acc.cardNumber || '',
+        creditLimit: acc.creditLimit || undefined,
+        billingDate: acc.billingDate || '',
+        dueDate: acc.dueDate || '',
+        provider: acc.provider || '',
+        linkedAccountId: acc.linkedAccountId || '',
+        upiId: acc.upiId || '',
+      } as any);
+      
+      setIsDialogOpen(true);
+    } catch (err: any) {
+      console.error("Error in openEditDialog:", err);
+      toast.error(`Error opening edit dialog: ${err.message}`);
+    }
   };
 
   const onSubmit = (data: AccountFormValues) => {
