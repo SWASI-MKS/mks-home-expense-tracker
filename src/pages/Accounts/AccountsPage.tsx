@@ -352,155 +352,153 @@ export function AccountsPage() {
     }
   };
 
-  // If we're viewing a specific account type
-  if (selectedAccountType) {
-    const typeInfo = ACCOUNT_TYPE_INFO[selectedAccountType];
-    const typeAccounts = filteredGroupedAccounts[selectedAccountType];
-    
-    return (
-      <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => setSelectedAccountType(null)}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <span className="text-2xl">{typeInfo.icon}</span>
-              {typeInfo.label}
-            </h1>
-            <p className="text-muted-foreground">{typeInfo.description}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {typeAccounts.map(acc => {
-            const { currentBalance } = getAccountBalance(acc.id);
-            return (
-              <Card key={acc.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{acc.name}</h3>
-                      {acc.lastFourDigits && (
-                        <p className="text-muted-foreground text-sm">•••• {acc.lastFourDigits}</p>
-                      )}
-                      {acc.provider && (
-                        <p className="text-muted-foreground text-sm">{acc.provider}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={(e) => { e.stopPropagation(); openEditDialog(acc.id); }} className="text-muted-foreground hover:text-primary p-1">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {!acc.isDefault && (
-                        <button onClick={(e) => { e.stopPropagation(); requestDelete(acc.id); }} className="text-muted-foreground hover:text-destructive p-1">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <p className="text-muted-foreground text-sm">Current Balance</p>
-                    <p className="text-2xl font-bold">{formatCurrency(currentBalance)}</p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => navigate(`/accounts/${acc.id}`)}
-                    >
-                      View Details
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => navigate(`/accounts/${acc.id}/statement`)}
-                    >
-                      <FileText className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-          
-          {typeAccounts.length === 0 && (
-            <div className="col-span-full text-center py-12">
-              <Wallet className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground">No accounts found</h3>
-              <p className="text-muted-foreground mb-4">Add your first account to get started</p>
-              <Button onClick={openAddDialog}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Account
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Render account type grid
+  // Render layout
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Accounts</h1>
-          <p className="text-muted-foreground">Manage your payment sources and balances</p>
-        </div>
-        <Button onClick={openAddDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Account
-        </Button>
-      </div>
+      {selectedAccountType ? (
+        // Specific Account Type View
+        <>
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => setSelectedAccountType(null)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <span className="text-2xl">{ACCOUNT_TYPE_INFO[selectedAccountType].icon}</span>
+                {ACCOUNT_TYPE_INFO[selectedAccountType].label}
+              </h1>
+              <p className="text-muted-foreground">{ACCOUNT_TYPE_INFO[selectedAccountType].description}</p>
+            </div>
+          </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input 
-          placeholder="Search accounts..." 
-          className="pl-9 max-w-md"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredGroupedAccounts[selectedAccountType].map(acc => {
+              const { currentBalance } = getAccountBalance(acc.id);
+              return (
+                <Card key={acc.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">{acc.name}</h3>
+                        {acc.lastFourDigits && (
+                          <p className="text-muted-foreground text-sm">•••• {acc.lastFourDigits}</p>
+                        )}
+                        {acc.provider && (
+                          <p className="text-muted-foreground text-sm">{acc.provider}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); openEditDialog(acc.id); }} className="text-muted-foreground hover:text-primary p-1">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        {!acc.isDefault && (
+                          <button onClick={(e) => { e.stopPropagation(); requestDelete(acc.id); }} className="text-muted-foreground hover:text-destructive p-1">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <p className="text-muted-foreground text-sm">Current Balance</p>
+                      <p className="text-2xl font-bold">{formatCurrency(currentBalance)}</p>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => navigate(`/accounts/${acc.id}`)}
+                      >
+                        View Details
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => navigate(`/accounts/${acc.id}/statement`)}
+                      >
+                        <FileText className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            
+            {filteredGroupedAccounts[selectedAccountType].length === 0 && (
+              <div className="col-span-full text-center py-12">
+                <Wallet className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground">No accounts found</h3>
+                <p className="text-muted-foreground mb-4">Add your first account to get started</p>
+                <Button onClick={openAddDialog}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Account
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        // Account Type Grid View
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Accounts</h1>
+              <p className="text-muted-foreground">Manage your payment sources and balances</p>
+            </div>
+            <Button onClick={openAddDialog}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Account
+            </Button>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {Object.entries(ACCOUNT_TYPE_INFO).map(([type, info]) => {
-          const typeAccounts = filteredGroupedAccounts[type as AccountType];
-          if (typeAccounts.length === 0 && search) return null;
-          
-          const totalBalance = getTypeTotalBalance(type as AccountType);
-          
-          return (
-            <Card 
-              key={type} 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setSelectedAccountType(type as AccountType)}
-            >
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${info.color}`}>
-                    <span className="text-2xl">{info.icon}</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </div>
-                
-                <h3 className="font-semibold text-lg mb-1">{info.label}</h3>
-                <p className="text-muted-foreground text-sm mb-4">
-                  {typeAccounts.length} {typeAccounts.length === 1 ? 'account' : 'accounts'}
-                </p>
-                
-                <div>
-                  <p className="text-muted-foreground text-sm">Total Balance</p>
-                  <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search accounts..." 
+              className="pl-9 max-w-md"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Object.entries(ACCOUNT_TYPE_INFO).map(([type, info]) => {
+              const typeAccounts = filteredGroupedAccounts[type as AccountType];
+              if (typeAccounts.length === 0 && search) return null;
+              
+              const totalBalance = getTypeTotalBalance(type as AccountType);
+              
+              return (
+                <Card 
+                  key={type} 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSelectedAccountType(type as AccountType)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${info.color}`}>
+                        <span className="text-2xl">{info.icon}</span>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    
+                    <h3 className="font-semibold text-lg mb-1">{info.label}</h3>
+                    <p className="text-muted-foreground text-sm mb-4">
+                      {typeAccounts.length} {typeAccounts.length === 1 ? 'account' : 'accounts'}
+                    </p>
+                    
+                    <div>
+                      <p className="text-muted-foreground text-sm">Total Balance</p>
+                      <p className="text-2xl font-bold">{formatCurrency(totalBalance)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
