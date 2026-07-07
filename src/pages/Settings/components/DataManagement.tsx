@@ -13,7 +13,6 @@ import { Download, Upload, Trash2, FileText, FileSpreadsheet, FileJson } from 'l
 import { CSVImport } from './CSVImport';
 import { notificationCenter } from '@/services/notification/notificationCenter';
 import { useFamilyStore } from '@/stores/useFamilyStore';
-import { DemoDataEnvironment } from './DemoDataGenerator';
 
 export function DataManagement() {
   const { transactions } = useTransactionStore();
@@ -147,8 +146,6 @@ export function DataManagement() {
         <h3 className="text-lg font-medium">Data Management</h3>
         <p className="text-sm text-muted-foreground">Backup, restore, and export your financial data.</p>
       </div>
-      
-      <DemoDataEnvironment />
 
       {/* Backup & Restore */}
       <div className="space-y-4 max-w-2xl">
