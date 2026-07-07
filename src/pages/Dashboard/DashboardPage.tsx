@@ -10,7 +10,8 @@ import {
 import { WidgetContainer } from '@/components/dashboard/WidgetContainer';
 import { 
   SummaryCardsWidget, IncomeExpenseChartWidget, CashFlowChartWidget,
-  CategoryBreakdownWidget, BudgetUsageWidget, AccountDistributionWidget, InsightsWidget
+  CategoryBreakdownWidget, BudgetUsageWidget, AccountDistributionWidget, InsightsWidget,
+  UpcomingRemindersWidget
 } from '@/components/dashboard/DashboardWidgets';
 import { Button } from '@/components/common/Button';
 import { Eye, Calendar as CalendarIcon } from 'lucide-react';
@@ -50,6 +51,7 @@ export function DashboardPage() {
       case 'accounts': return <AccountDistributionWidget />;
       case 'budgets': return <BudgetUsageWidget />;
       case 'insights': return <InsightsWidget />;
+      case 'upcoming_reminders': return <UpcomingRemindersWidget />;
       default: return null;
     }
   };
@@ -77,12 +79,12 @@ export function DashboardPage() {
               onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
               className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer w-full"
             >
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="year">This Year</option>
               <option value="last_month">Last Month</option>
               <option value="last_year">Last Year</option>
+              <option value="month">This Month</option>
+              <option value="week">This Week</option>
+              <option value="year">This Year</option>
+              <option value="today">Today</option>
             </select>
           </div>
         </div>

@@ -1,36 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Transaction } from '@/types';
-import { useAccountStore } from './useAccountStore';
+import { Transaction, AuditHistoryEntry } from '@/types';
 import { generateTxnId } from '@/utils/generateTxnId';
 import { isSameDay } from 'date-fns';
+import { dbService } from '@/services/firestore/dbService';
+import { useFamilyStore } from './useFamilyStore';
+import { notificationCenter } from '@/services/notification/notificationCenter';
+import { useSettingsStore } from './useSettingsStore';
+import { useBudgetStore } from './useBudgetStore';
+import { NotificationRateLimiter } from '@/services/notification/notificationRateLimiter';
+
+const generateAuditId = () => `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 interface TransactionState {
   transactions: Transaction[];
   addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'isArchived'>) => void;
-  updateTransaction: (id: string, updates: Partial<Omit<Transaction, 'id' | 'createdAt' | 'isArchived'>>) => void;
+  updateTransaction: (id: string, updates: Partial<Omit<Transaction, 'id' | 'createdAt' | 'isArchived'>>, auditDescription?: string) => void;
   deleteTransaction: (id: string) => void;
   archiveTransaction: (id: string) => void;
   restoreTransaction: (id: string) => void;
-  recalculateAllBalances: () => void;
+  duplicateTransaction: (id: string) => void;
   hasTransactionsForAccount: (accountId: string) => boolean;
   hasTransactionsForCategory: (categoryId: string) => boolean;
   checkDuplicate: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'isArchived'>) => boolean;
 }
-
-const applyBalanceChange = (t: Transaction, reverse: boolean = false) => {
-  const { updateBalance } = useAccountStore.getState();
-  const multiplier = reverse ? -1 : 1;
-
-  if (t.type === 'income') {
-    if (t.accountId) updateBalance(t.accountId, t.amount * multiplier);
-  } else if (t.type === 'expense') {
-    if (t.accountId) updateBalance(t.accountId, -t.amount * multiplier);
-  } else if (t.type === 'transfer') {
-    if (t.fromAccountId) updateBalance(t.fromAccountId, -t.amount * multiplier);
-    if (t.toAccountId) updateBalance(t.toAccountId, t.amount * multiplier);
-  }
-};
 
 export const useTransactionStore = create<TransactionState>()(
   persist(
@@ -39,33 +32,118 @@ export const useTransactionStore = create<TransactionState>()(
       
       addTransaction: (transaction) => set((state) => {
         const id = generateTxnId(state.transactions.map(t => t.id));
+        const displayName = useFamilyStore.getState().displayName;
+        const member = displayName || 'System';
+        
+        const auditEntry: AuditHistoryEntry = {
+          id: generateAuditId(),
+          action: 'transaction_created',
+          timestamp: new Date().toISOString(),
+          memberName: member,
+          description: `${member} created the transaction`,
+        };
+        
         const newTxn: Transaction = {
           ...transaction,
           id,
           isArchived: false,
           createdAt: new Date().toISOString(),
+          auditHistory: [auditEntry],
+          ...(displayName ? { addedBy: displayName } : {})
         };
         
-        applyBalanceChange(newTxn);
+        dbService.save('transactions', newTxn.id, newTxn);
         
+        // Notifications
+        const settings = useSettingsStore.getState();
+        
+        notificationCenter.dispatch({
+          title: 'Transaction Added',
+          message: `${member} added a ${newTxn.type} of ₹${newTxn.amount.toLocaleString('en-IN')}.`,
+          category: 'FINANCE',
+          severity: 'INFO',
+          member,
+          preventEmail: true,
+        });
+
+        if (newTxn.type === 'expense' && newTxn.amount >= settings.largeExpenseThreshold) {
+          notificationCenter.dispatch({
+            title: 'Large Expense Detected',
+            message: `${member} added an expense of ₹${newTxn.amount.toLocaleString('en-IN')}.`,
+            category: 'EXPENSE',
+            severity: 'WARNING',
+            member,
+            metadata: { amount: newTxn.amount },
+            rateLimitKey: 'LARGE_EXPENSE',
+            rateLimitMs: NotificationRateLimiter.LIMITS.LARGE_EXPENSE,
+            forceEmail: true,
+            preventBrowser: true,
+          });
+        } else if (newTxn.type === 'income' && newTxn.amount >= settings.largeIncomeThreshold) {
+          notificationCenter.dispatch({
+            title: 'Large Income Detected',
+            message: `${member} added an income of ₹${newTxn.amount.toLocaleString('en-IN')}.`,
+            category: 'INCOME',
+            severity: 'INFO',
+            member,
+            metadata: { amount: newTxn.amount },
+            rateLimitKey: 'LARGE_INCOME',
+            rateLimitMs: NotificationRateLimiter.LIMITS.LARGE_INCOME,
+            forceEmail: true,
+            preventBrowser: true,
+          });
+        } else if (newTxn.type === 'transfer' && newTxn.amount >= settings.largeTransferThreshold) {
+          notificationCenter.dispatch({
+            title: 'Large Transfer Detected',
+            message: `${member} transferred ₹${newTxn.amount.toLocaleString('en-IN')}.`,
+            category: 'TRANSFER',
+            severity: 'INFO',
+            member,
+            metadata: { amount: newTxn.amount },
+            rateLimitKey: 'LARGE_TRANSFER',
+            rateLimitMs: NotificationRateLimiter.LIMITS.LARGE_TRANSFER,
+            forceEmail: true,
+            preventBrowser: true,
+          });
+        }
+        
+        useBudgetStore.getState().checkBudgets();
+
         return { transactions: [newTxn, ...state.transactions] };
       }),
       
-      updateTransaction: (id, updates) => set((state) => {
+      updateTransaction: (id, updates, auditDescription) => set((state) => {
         const existingTxn = state.transactions.find(t => t.id === id);
         if (!existingTxn) return state;
 
-        // Reverse old balance impact
-        if (!existingTxn.isArchived) {
-          applyBalanceChange(existingTxn, true);
-        }
+        const member = useFamilyStore.getState().displayName || 'System';
+        const auditEntry: AuditHistoryEntry = {
+          id: generateAuditId(),
+          action: 'transaction_edited',
+          timestamp: new Date().toISOString(),
+          memberName: member,
+          description: auditDescription || `${member} edited the transaction`,
+        };
 
-        const updatedTxn: Transaction = { ...existingTxn, ...updates };
+        const updatedTxn: Transaction = {
+          ...existingTxn,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+          lastModifiedBy: member,
+          auditHistory: [...(existingTxn.auditHistory || []), auditEntry],
+        };
+        dbService.save('transactions', updatedTxn.id, updatedTxn);
 
-        // Apply new balance impact
-        if (!updatedTxn.isArchived) {
-          applyBalanceChange(updatedTxn, false);
-        }
+        notificationCenter.dispatch({
+          title: 'Transaction Edited',
+          message: `${member} updated a transaction.`,
+          category: 'FINANCE',
+          severity: 'INFO',
+          member,
+          preventEmail: true,
+        });
+        
+        useBudgetStore.getState().checkBudgets();
 
         return {
           transactions: state.transactions.map(t => t.id === id ? updatedTxn : t)
@@ -73,10 +151,39 @@ export const useTransactionStore = create<TransactionState>()(
       }),
       
       deleteTransaction: (id) => set((state) => {
-        const existingTxn = state.transactions.find(t => t.id === id);
-        if (existingTxn && !existingTxn.isArchived) {
-          applyBalanceChange(existingTxn, true);
+        const txn = state.transactions.find(t => t.id === id);
+        const member = useFamilyStore.getState().displayName || 'System';
+        
+        if (txn) {
+          // Add audit entry
+          const auditEntry: AuditHistoryEntry = {
+            id: generateAuditId(),
+            action: 'transaction_deleted',
+            timestamp: new Date().toISOString(),
+            memberName: member,
+            description: `${member} deleted the transaction`,
+          };
+          
+          // We don't actually delete from DB for audit, just mark as archived and add entry
+          const updatedTxn = { 
+            ...txn, 
+            isArchived: true, 
+            auditHistory: [...(txn.auditHistory || []), auditEntry] 
+          };
+          dbService.save('transactions', updatedTxn.id, updatedTxn);
+          
+          notificationCenter.dispatch({
+            title: 'Transaction Deleted',
+            message: `${member} deleted a ${txn.type}.`,
+            category: 'FINANCE',
+            severity: 'INFO',
+            member,
+            preventEmail: true,
+          });
         }
+        
+        useBudgetStore.getState().checkBudgets();
+        
         return {
           transactions: state.transactions.filter(t => t.id !== id)
         };
@@ -84,10 +191,25 @@ export const useTransactionStore = create<TransactionState>()(
       
       archiveTransaction: (id) => set((state) => {
         const existingTxn = state.transactions.find(t => t.id === id);
+        const member = useFamilyStore.getState().displayName || 'System';
+        
         if (existingTxn && !existingTxn.isArchived) {
-          applyBalanceChange(existingTxn, true);
+          const auditEntry: AuditHistoryEntry = {
+            id: generateAuditId(),
+            action: 'transaction_archived',
+            timestamp: new Date().toISOString(),
+            memberName: member,
+            description: `${member} archived the transaction`,
+          };
+          
+          const updatedTxn = { 
+            ...existingTxn, 
+            isArchived: true,
+            auditHistory: [...(existingTxn.auditHistory || []), auditEntry]
+          };
+          dbService.save('transactions', updatedTxn.id, updatedTxn);
           return {
-            transactions: state.transactions.map(t => t.id === id ? { ...t, isArchived: true } : t)
+            transactions: state.transactions.map(t => t.id === id ? updatedTxn : t)
           };
         }
         return state;
@@ -95,10 +217,25 @@ export const useTransactionStore = create<TransactionState>()(
       
       restoreTransaction: (id) => set((state) => {
         const existingTxn = state.transactions.find(t => t.id === id);
+        const member = useFamilyStore.getState().displayName || 'System';
+        
         if (existingTxn && existingTxn.isArchived) {
-          applyBalanceChange(existingTxn, false);
+          const auditEntry: AuditHistoryEntry = {
+            id: generateAuditId(),
+            action: 'transaction_restored',
+            timestamp: new Date().toISOString(),
+            memberName: member,
+            description: `${member} restored the transaction from archive`,
+          };
+          
+          const updatedTxn = { 
+            ...existingTxn, 
+            isArchived: false,
+            auditHistory: [...(existingTxn.auditHistory || []), auditEntry]
+          };
+          dbService.save('transactions', updatedTxn.id, updatedTxn);
           return {
-            transactions: state.transactions.map(t => t.id === id ? { ...t, isArchived: false } : t)
+            transactions: state.transactions.map(t => t.id === id ? updatedTxn : t)
           };
         }
         return state;
@@ -136,31 +273,36 @@ export const useTransactionStore = create<TransactionState>()(
         });
       },
       
-      recalculateAllBalances: () => {
-        const { accounts, setBalance } = useAccountStore.getState();
-        const txns = get().transactions;
+      duplicateTransaction: (id) => set((state) => {
+        const txn = state.transactions.find(t => t.id === id);
+        if (!txn) return state;
         
-        // Reset local map
-        const balances = new Map(accounts.map(a => [a.id, 0]));
+        const { id: _id, createdAt: _createdAt, ...rest } = txn;
+        const newId = generateTxnId(state.transactions.map(t => t.id));
+        const displayName = useFamilyStore.getState().displayName;
+        const member = displayName || 'System';
         
-        // Replay active transactions
-        txns.forEach(t => {
-          if (t.isArchived) return;
-          if (t.type === 'income' && t.accountId) {
-            balances.set(t.accountId, (balances.get(t.accountId) || 0) + t.amount);
-          } else if (t.type === 'expense' && t.accountId) {
-            balances.set(t.accountId, (balances.get(t.accountId) || 0) - t.amount);
-          } else if (t.type === 'transfer' && t.fromAccountId && t.toAccountId) {
-            balances.set(t.fromAccountId, (balances.get(t.fromAccountId) || 0) - t.amount);
-            balances.set(t.toAccountId, (balances.get(t.toAccountId) || 0) + t.amount);
-          }
-        });
-
-        // Update the account store
-        balances.forEach((balance, id) => {
-          setBalance(id, balance);
-        });
-      }
+        const auditEntry: AuditHistoryEntry = {
+          id: generateAuditId(),
+          action: 'transaction_created',
+          timestamp: new Date().toISOString(),
+          memberName: member,
+          description: `${member} duplicated transaction ${txn.id}`,
+        };
+        
+        const newTxn: Transaction = {
+          ...rest,
+          id: newId,
+          isArchived: false,
+          createdAt: new Date().toISOString(),
+          auditHistory: [auditEntry],
+          ...(displayName ? { addedBy: displayName } : {})
+        };
+        
+        dbService.save('transactions', newTxn.id, newTxn);
+        
+        return { transactions: [newTxn, ...state.transactions] };
+      })
     }),
     {
       name: 'expense-tracker-transactions',

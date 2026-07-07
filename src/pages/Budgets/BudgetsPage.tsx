@@ -6,10 +6,10 @@ import { BudgetDashboard } from './BudgetDashboard';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { Plus, Edit2, Trash2, Copy, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
+import { formatCurrency } from '@/utils/currency';
 
 export function BudgetsPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
@@ -19,7 +19,6 @@ export function BudgetsPage() {
   const { openBudgetModal } = useUIStore();
   const { getBudgetsProgress, getDashboardStats, deleteBudget, toggleBudget, addBudget } = useBudgetStore();
   const { categories } = useCategoryStore();
-  const { currency } = useSettingsStore();
 
   const progresses = getBudgetsProgress(currentMonth, currentYear);
   const stats = getDashboardStats(currentMonth, currentYear);
@@ -117,9 +116,9 @@ export function BudgetsPage() {
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Spent {currency}{budget.spent.toLocaleString('en-IN')}</span>
+                  <span className="text-muted-foreground">Spent {formatCurrency(budget.spent)}</span>
                   <span className="font-medium text-foreground">
-                    {currency}{budget.amount.toLocaleString('en-IN')}
+                    {formatCurrency(budget.amount)}
                   </span>
                 </div>
                 <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
@@ -143,12 +142,12 @@ export function BudgetsPage() {
                   
                   {budget.status === 'exceeded' && (
                     <span className="text-xs flex items-center text-rose-500 font-medium">
-                      <AlertTriangle className="w-3 h-3 mr-1" /> Exceeded by {currency}{Math.abs(budget.remaining).toLocaleString('en-IN')}
+                      <AlertTriangle className="w-3 h-3 mr-1" /> Exceeded by {formatCurrency(Math.abs(budget.remaining))}
                     </span>
                   )}
                   {budget.status !== 'exceeded' && (
                     <span className="text-xs text-muted-foreground">
-                      {currency}{budget.remaining.toLocaleString('en-IN')} left
+                      {formatCurrency(budget.remaining)} left
                     </span>
                   )}
                 </div>

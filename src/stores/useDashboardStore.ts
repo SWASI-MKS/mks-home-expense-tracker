@@ -10,7 +10,8 @@ export type WidgetType =
   | 'categories' 
   | 'budgets' 
   | 'accounts' 
-  | 'insights';
+  | 'insights'
+  | 'upcoming_reminders';
 
 export interface WidgetState {
   id: string;
@@ -28,6 +29,7 @@ const defaultWidgets: WidgetState[] = [
   { id: 'widget-accounts', type: 'accounts', title: 'Account Distribution', visible: true, collapsed: false },
   { id: 'widget-budgets', type: 'budgets', title: 'Budget Usage', visible: true, collapsed: false },
   { id: 'widget-insights', type: 'insights', title: 'Financial Insights', visible: true, collapsed: false },
+  { id: 'widget-upcoming_reminders', type: 'upcoming_reminders', title: 'Upcoming Reminders', visible: true, collapsed: false },
 ];
 
 interface DashboardStoreState {

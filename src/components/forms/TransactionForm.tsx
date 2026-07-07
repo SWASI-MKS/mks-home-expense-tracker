@@ -5,16 +5,19 @@ import * as z from 'zod';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
+import { Transaction } from '@/types';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
 
 import { useAccountStore } from '@/stores/useAccountStore';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import { useTransactionStore } from '@/stores/useTransactionStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useBalanceEngine } from '@/hooks/useBalanceEngine';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { ArrowRightLeft, TrendingDown, TrendingUp } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { formatCurrency } from '@/utils/currency';
 
 const baseSchema = z.object({
   type: z.enum(['income', 'expense', 'transfer']),
@@ -47,50 +50,80 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 
 interface TransactionFormProps {
   editId?: string | null;
+  initialData?: Transaction | null;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
-export function TransactionForm({ editId, onSuccess, onCancel }: TransactionFormProps) {
+export function TransactionForm({ editId, initialData, onSuccess, onCancel }: TransactionFormProps) {
   const { accounts } = useAccountStore();
   const { categories } = useCategoryStore();
   const { transactions, addTransaction, updateTransaction, checkDuplicate } = useTransactionStore();
   const { currency } = useSettingsStore();
+  const { getAccountBalance } = useBalanceEngine();
 
   const [hasWarnedDuplicate, setHasWarnedDuplicate] = useState(false);
 
   const existingTxn = editId ? transactions.find(t => t.id === editId) : null;
+  const sourceTxn = initialData || existingTxn;
+
+  let initialValues: any = {
+    type: 'expense',
+    amount: undefined,
+    date: format(new Date(), 'yyyy-MM-dd'),
+    notes: '',
+    accountId: '',
+    categoryId: '',
+  };
+
+  if (sourceTxn) {
+    initialValues = {
+      type: sourceTxn.type,
+      amount: sourceTxn.amount,
+      date: initialData ? format(new Date(), 'yyyy-MM-dd') : format(new Date(sourceTxn.date), 'yyyy-MM-dd'),
+      notes: initialData ? (sourceTxn.notes ? `${sourceTxn.notes} (Copy)` : 'Copy') : (sourceTxn.notes || ''),
+      ...(sourceTxn.type === 'transfer' ? {
+        fromAccountId: sourceTxn.fromAccountId,
+        toAccountId: sourceTxn.toAccountId,
+      } : {
+        accountId: sourceTxn.accountId,
+        categoryId: sourceTxn.categoryId,
+      })
+    };
+  } else {
+    const dupId = localStorage.getItem('duplicate_txn_id');
+    if (dupId) {
+      const dupTxn = transactions.find(t => t.id === dupId);
+      if (dupTxn) {
+        initialValues = {
+          type: dupTxn.type,
+          amount: dupTxn.amount,
+          date: format(new Date(), 'yyyy-MM-dd'),
+          notes: dupTxn.notes ? `${dupTxn.notes} (Copy)` : 'Copy',
+          ...(dupTxn.type === 'transfer' ? {
+            fromAccountId: dupTxn.fromAccountId,
+            toAccountId: dupTxn.toAccountId,
+          } : {
+            accountId: dupTxn.accountId,
+            categoryId: dupTxn.categoryId,
+          })
+        };
+      }
+      localStorage.removeItem('duplicate_txn_id');
+    }
+  }
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: existingTxn ? {
-      type: existingTxn.type,
-      amount: existingTxn.amount,
-      date: format(new Date(existingTxn.date), 'yyyy-MM-dd'),
-      notes: existingTxn.notes || '',
-      ...(existingTxn.type === 'transfer' ? {
-        fromAccountId: existingTxn.fromAccountId,
-        toAccountId: existingTxn.toAccountId,
-      } : {
-        accountId: existingTxn.accountId,
-        categoryId: existingTxn.categoryId,
-      })
-    } : {
-      type: 'expense',
-      amount: undefined,
-      date: format(new Date(), 'yyyy-MM-dd'),
-      notes: '',
-      accountId: '',
-      categoryId: '',
-    }
+    defaultValues: initialValues
   });
 
   const type = watch('type');
   const watchAccountId = watch(type === 'transfer' ? 'fromAccountId' : 'accountId' as any);
   const watchToAccountId = watch(type === 'transfer' ? 'toAccountId' : 'accountId' as any); // just mapping for types
 
-  const selectedAccountBalance = accounts.find(a => a.id === watchAccountId)?.balance;
-  const selectedToAccountBalance = accounts.find(a => a.id === watchToAccountId)?.balance;
+  const selectedAccountBalance = watchAccountId ? getAccountBalance(watchAccountId).currentBalance : undefined;
+  const selectedToAccountBalance = watchToAccountId ? getAccountBalance(watchToAccountId).currentBalance : undefined;
 
   const onSubmit = (data: TransactionFormValues) => {
     const isDuplicate = checkDuplicate(data);
@@ -179,12 +212,12 @@ export function TransactionForm({ editId, onSuccess, onCancel }: TransactionForm
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Select source</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {[...accounts].sort((a, b) => a.name.localeCompare(b.name)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             {/* @ts-ignore */}
             {errors.fromAccountId && <p className="text-sm text-destructive mt-1">{errors.fromAccountId.message}</p>}
             {selectedAccountBalance !== undefined && (
-              <p className="text-xs text-muted-foreground mt-1">Balance: {currency}{selectedAccountBalance.toLocaleString('en-IN')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Balance: {formatCurrency(selectedAccountBalance)}</p>
             )}
           </div>
           <div>
@@ -194,12 +227,12 @@ export function TransactionForm({ editId, onSuccess, onCancel }: TransactionForm
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Select destination</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {[...accounts].sort((a, b) => a.name.localeCompare(b.name)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             {/* @ts-ignore */}
             {errors.toAccountId && <p className="text-sm text-destructive mt-1">{errors.toAccountId.message}</p>}
             {selectedToAccountBalance !== undefined && (
-              <p className="text-xs text-muted-foreground mt-1">Balance: {currency}{selectedToAccountBalance.toLocaleString('en-IN')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Balance: {formatCurrency(selectedToAccountBalance)}</p>
             )}
           </div>
         </div>
@@ -212,12 +245,12 @@ export function TransactionForm({ editId, onSuccess, onCancel }: TransactionForm
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Select account</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {[...accounts].sort((a, b) => a.name.localeCompare(b.name)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             {/* @ts-ignore */}
             {errors.accountId && <p className="text-sm text-destructive mt-1">{errors.accountId.message}</p>}
             {selectedAccountBalance !== undefined && (
-              <p className="text-xs text-muted-foreground mt-1">Balance: {currency}{selectedAccountBalance.toLocaleString('en-IN')}</p>
+              <p className="text-xs text-muted-foreground mt-1">Balance: {formatCurrency(selectedAccountBalance)}</p>
             )}
           </div>
           <div>
@@ -227,7 +260,7 @@ export function TransactionForm({ editId, onSuccess, onCancel }: TransactionForm
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Select category</option>
-              {categories.filter(c => c.type === type).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {[...categories].filter(c => c.type === type).sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             {/* @ts-ignore */}
             {errors.categoryId && <p className="text-sm text-destructive mt-1">{errors.categoryId.message}</p>}

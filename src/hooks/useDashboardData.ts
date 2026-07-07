@@ -4,6 +4,7 @@ import { useTransactionStore } from '@/stores/useTransactionStore';
 import { useAccountStore } from '@/stores/useAccountStore';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import { useBudgetStore } from '@/stores/useBudgetStore';
+import { useBalanceEngine } from '@/hooks/useBalanceEngine';
 import { 
   startOfDay, endOfDay, startOfWeek, endOfWeek, 
   startOfMonth, endOfMonth, startOfYear, endOfYear, 
@@ -16,6 +17,7 @@ export function useDashboardData() {
   const { accounts } = useAccountStore();
   const { categories } = useCategoryStore();
   const { getBudgetsProgress } = useBudgetStore();
+  const { netWorth: totalNetWorth, getAccountBalance } = useBalanceEngine();
 
   // 1. Determine Date Range
   const dateRange = useMemo(() => {
@@ -85,7 +87,7 @@ export function useDashboardData() {
       }
     });
 
-    const netWorth = accounts.reduce((sum, a) => sum + a.balance, 0);
+    const netWorth = totalNetWorth;
     const savings = income - expense;
     const savingsRate = income > 0 ? (savings / income) * 100 : 0;
     
@@ -112,9 +114,9 @@ export function useDashboardData() {
       avgDailySpend,
       highestCategory
     };
-  }, [filteredTransactions, accounts, categories, dateRange]);
+  }, [filteredTransactions, categories, dateRange, totalNetWorth]);
 
-  // 4. Budgets Data (Current Month regardless of date filter, or mapped to date filter if desired. Prompt says "Current Month Income/Expenses" inside summary cards, meaning budgets are usually monthly. Let's just use current month for budget summary to be safe).
+  // 4. Budgets Data
   const budgetStats = useMemo(() => {
     const now = new Date();
     const progresses = getBudgetsProgress(now.getMonth() + 1, now.getFullYear());
@@ -147,10 +149,13 @@ export function useDashboardData() {
   // 6. Chart Data: Account Distribution
   const accountChartData = useMemo(() => {
     return accounts
-      .filter(a => a.balance > 0)
-      .map(a => ({ name: a.name, value: a.balance }))
+      .map(a => {
+        const { currentBalance } = getAccountBalance(a.id);
+        return { id: a.id, name: a.name, value: currentBalance };
+      })
+      .filter(a => a.value > 0)
       .sort((a,b) => b.value - a.value);
-  }, [accounts]);
+  }, [accounts, getAccountBalance]);
 
   // 7. Chart Data: Income vs Expense & Cash Flow (Aggregated by day or month)
   const timeSeriesData = useMemo(() => {
@@ -178,17 +183,9 @@ export function useDashboardData() {
 
     const sorted = Array.from(map.values()).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
     
-    // Calculate running balance based on all-time initial balance + flow
-    // To be perfectly accurate, we'd need the balance at `dateRange.start`.
-    // Since calculating historical balance accurately requires traversing all past transactions, 
-    // we will approximate running balance by tracking net flow delta from a 0 baseline, 
-    // or just show net flow. The prompt asked for "Running balance over time". 
-    // To do this simply, we will calculate the balance *before* the start date.
-    
-    let historicalBalance = accounts.reduce((sum, a) => sum + a.balance, 0); // Current total
+    let historicalBalance = totalNetWorth;
     
     // We want the balance at the START of the graph.
-    // Actually, working backwards:
     const txnsAfterStart = transactions.filter(t => !t.isArchived && new Date(t.date) > dateRange.start);
     let startBalance = historicalBalance;
     txnsAfterStart.forEach(t => {
@@ -207,7 +204,7 @@ export function useDashboardData() {
     });
 
     return finalSeries;
-  }, [filteredTransactions, transactions, dateRange, accounts]);
+  }, [filteredTransactions, transactions, dateRange, totalNetWorth]);
 
   return {
     dateRange,

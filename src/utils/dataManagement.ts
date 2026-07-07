@@ -10,6 +10,7 @@ import { useDashboardStore } from '@/stores/useDashboardStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { Transaction } from '@/types';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/utils/currency';
 
 // ==========================================
 // JSON BACKUP & RESTORE
@@ -40,7 +41,7 @@ export function validateBackupJSON(jsonString: string): any {
       throw new Error('Invalid backup file format');
     }
     return data;
-  } catch (err) {
+  } catch {
     throw new Error('Failed to parse JSON file');
   }
 }
@@ -71,9 +72,6 @@ export function restoreFromBackup(data: any, mode: 'replace' | 'merge') {
     useCategoryStore.setState({ categories: mergeArrays(catStore.categories, data.categories) });
     useBudgetStore.setState({ budgets: mergeArrays(budStore.budgets, data.budgets) });
   }
-  
-  // Force a full balance recalculation just to be safe
-  txStore.recalculateAllBalances();
 }
 
 export function clearAllData() {
@@ -91,19 +89,41 @@ export function clearAllData() {
 function getExportData(txns: Transaction[]) {
   const accounts = useAccountStore.getState().accounts;
   const categories = useCategoryStore.getState().categories;
+  const allTxns = useTransactionStore.getState().transactions;
 
-  return txns.map(t => ({
-    ID: t.id,
-    Date: format(new Date(t.date), 'yyyy-MM-dd'),
-    Type: t.type.toUpperCase(),
-    Category: categories.find(c => c.id === t.categoryId)?.name || '-',
-    Account: accounts.find(a => a.id === t.accountId)?.name || '-',
-    'From Account': accounts.find(a => a.id === t.fromAccountId)?.name || '-',
-    'To Account': accounts.find(a => a.id === t.toAccountId)?.name || '-',
-    Amount: t.amount,
-    Notes: t.notes || '',
-    Status: t.isArchived ? 'Archived' : 'Active'
-  }));
+  // Compute current balances
+  const balances = new Map<string, number>();
+  accounts.forEach(a => balances.set(a.id, a.openingBalance || 0));
+  
+  allTxns.forEach(t => {
+    if (t.isArchived) return;
+    if (t.type === 'income' && t.accountId) {
+      balances.set(t.accountId, (balances.get(t.accountId) || 0) + t.amount);
+    } else if (t.type === 'expense' && t.accountId) {
+      balances.set(t.accountId, (balances.get(t.accountId) || 0) - t.amount);
+    } else if (t.type === 'transfer' && t.fromAccountId && t.toAccountId) {
+      balances.set(t.fromAccountId, (balances.get(t.fromAccountId) || 0) - t.amount);
+      balances.set(t.toAccountId, (balances.get(t.toAccountId) || 0) + t.amount);
+    }
+  });
+
+  return txns.map(t => {
+    const acc = accounts.find(a => a.id === (t.accountId || t.fromAccountId));
+    return {
+      ID: t.id,
+      Date: format(new Date(t.date), 'yyyy-MM-dd'),
+      Type: t.type.toUpperCase(),
+      Category: categories.find(c => c.id === t.categoryId)?.name || '-',
+      Account: acc?.name || '-',
+      'Account Opening Balance': acc?.openingBalance || 0,
+      'Account Opening Date': acc?.openingBalanceDate || '',
+      'Account Current Balance': balances.get(acc?.id || '') || 0,
+      'To Account': accounts.find(a => a.id === t.toAccountId)?.name || '-',
+      Amount: t.amount,
+      Notes: t.notes || '',
+      Status: t.isArchived ? 'Archived' : 'Active'
+    };
+  });
 }
 
 export function exportToCSV(txns: Transaction[]) {
@@ -124,7 +144,6 @@ export function exportToExcel(txns: Transaction[]) {
 export function exportToPDF(txns: Transaction[], summary: any) {
   const doc = new jsPDF();
   const data = getExportData(txns);
-  const currency = useSettingsStore.getState().currency;
 
   // Cover Page / Header
   doc.setFontSize(22);
@@ -137,9 +156,13 @@ export function exportToPDF(txns: Transaction[], summary: any) {
   doc.setFontSize(14);
   doc.text("Summary", 14, 45);
   doc.setFontSize(10);
-  doc.text(`Total Income: ${currency}${summary.income.toLocaleString('en-IN')}`, 14, 55);
-  doc.text(`Total Expense: ${currency}${summary.expense.toLocaleString('en-IN')}`, 14, 62);
-  doc.text(`Net Savings: ${currency}${summary.savings.toLocaleString('en-IN')}`, 14, 69);
+  const income = summary.income ?? summary.totalIncome ?? 0;
+  const expense = summary.expense ?? summary.totalExpenses ?? 0;
+  const savings = summary.savings ?? summary.netSavings ?? 0;
+
+  doc.text(`Total Income: ${formatCurrency(income)}`, 14, 55);
+  doc.text(`Total Expense: ${formatCurrency(expense)}`, 14, 62);
+  doc.text(`Net Savings: ${formatCurrency(savings)}`, 14, 69);
   
   // Table
   const tableColumn = Object.keys(data[0] || {});

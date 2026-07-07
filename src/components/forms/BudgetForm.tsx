@@ -32,7 +32,7 @@ export function BudgetForm({ editId, onSuccess, onCancel }: BudgetFormProps) {
   const { categories } = useCategoryStore();
   const { currency } = useSettingsStore();
 
-  const expenseCategories = categories.filter(c => c.type === 'expense');
+  const expenseCategories = [...categories].filter(c => c.type === 'expense').sort((a, b) => a.name.localeCompare(b.name));
   const existingBudget = editId ? budgets.find(b => b.id === editId) : null;
 
   const currentMonth = new Date().getMonth() + 1;
@@ -124,9 +124,13 @@ export function BudgetForm({ editId, onSuccess, onCancel }: BudgetFormProps) {
             {...register('month', { valueAsNumber: true })}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {Array.from({ length: 12 }).map((_, i) => (
-              <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
-            ))}
+            {Array.from({ length: 12 })
+              .map((_, i) => ({ value: i + 1, label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))
+            }
           </select>
         </div>
         <div>

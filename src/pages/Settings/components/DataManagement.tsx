@@ -7,9 +7,13 @@ import {
   exportToCSV, exportToExcel, exportToPDF 
 } from '@/utils/dataManagement';
 import { useTransactionStore } from '@/stores/useTransactionStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { Download, Upload, Trash2, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
 import { CSVImport } from './CSVImport';
+import { notificationCenter } from '@/services/notification/notificationCenter';
+import { useFamilyStore } from '@/stores/useFamilyStore';
+import { DemoDataEnvironment } from './DemoDataGenerator';
 
 export function DataManagement() {
   const { transactions } = useTransactionStore();
@@ -30,8 +34,31 @@ export function DataManagement() {
       link.download = `expense_tracker_backup_${new Date().toISOString().slice(0,10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
+      
+      // Update last backup date in store
+      useSettingsStore.getState().setLastBackupDate(new Date().toISOString());
+      
+      const member = useFamilyStore.getState().displayName || 'System';
+      notificationCenter.dispatch({
+        title: 'Backup Successful',
+        message: `${member} successfully exported a data backup.`,
+        category: 'BACKUP',
+        severity: 'SUCCESS',
+        member,
+        preventEmail: true,
+      });
+      
       toast.success('Backup exported successfully');
-    } catch (e) {
+    } catch (e: any) {
+      const member = useFamilyStore.getState().displayName || 'System';
+      notificationCenter.dispatch({
+        title: 'Backup Failed',
+        message: `Failed to generate data backup. Error: ${e.message}`,
+        category: 'BACKUP',
+        severity: 'ERROR',
+        member,
+        forceEmail: true,
+      });
       toast.error('Failed to generate backup');
     }
   };
@@ -48,6 +75,15 @@ export function DataManagement() {
         setRestoreData(data);
         setIsRestoreOpen(true);
       } catch (err: any) {
+        const member = useFamilyStore.getState().displayName || 'System';
+        notificationCenter.dispatch({
+          title: 'Corrupted JSON Import',
+          message: `${member} attempted to import an invalid backup file. Error: ${err.message}`,
+          category: 'SYSTEM',
+          severity: 'ERROR',
+          member,
+          forceEmail: true,
+        });
         toast.error(err.message || 'Invalid backup file');
       }
     };
@@ -60,10 +96,30 @@ export function DataManagement() {
     if (!restoreData) return;
     try {
       restoreFromBackup(restoreData, mode);
+      
+      const member = useFamilyStore.getState().displayName || 'System';
+      notificationCenter.dispatch({
+        title: 'Backup Restored',
+        message: `${member} restored a backup (${mode}).`,
+        category: 'BACKUP',
+        severity: 'SUCCESS',
+        member,
+        preventEmail: true,
+      });
+      
       toast.success('Data restored successfully');
       setIsRestoreOpen(false);
       setRestoreData(null);
-    } catch (e) {
+    } catch (e: any) {
+      const member = useFamilyStore.getState().displayName || 'System';
+      notificationCenter.dispatch({
+        title: 'Database Restore Failed',
+        message: `Failed to restore backup. Error: ${e.message}`,
+        category: 'BACKUP',
+        severity: 'CRITICAL',
+        member,
+        forceEmail: true,
+      });
       toast.error('Failed to restore data');
     }
   };
@@ -71,6 +127,17 @@ export function DataManagement() {
   const handleClearData = () => {
     clearAllData();
     setIsClearOpen(false);
+    
+    const member = useFamilyStore.getState().displayName || 'System';
+    notificationCenter.dispatch({
+      title: 'Database Wiped',
+      message: `${member} cleared all application data.`,
+      category: 'SYSTEM',
+      severity: 'WARNING',
+      member,
+      preventEmail: true,
+    });
+    
     toast.success('All data has been cleared');
   };
 
@@ -80,6 +147,8 @@ export function DataManagement() {
         <h3 className="text-lg font-medium">Data Management</h3>
         <p className="text-sm text-muted-foreground">Backup, restore, and export your financial data.</p>
       </div>
+      
+      <DemoDataEnvironment />
 
       {/* Backup & Restore */}
       <div className="space-y-4 max-w-2xl">

@@ -1,235 +1,445 @@
-import { useState, useMemo } from 'react';
-import { TransactionFilters, FilterState } from '@/components/tables/TransactionFilters';
-import { TransactionTable } from '@/components/tables/TransactionTable';
+import { useState, useMemo, useCallback } from 'react';
 import { useTransactionStore } from '@/stores/useTransactionStore';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import { useAccountStore } from '@/stores/useAccountStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { Button } from '@/components/common/Button';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
-import { Plus, Archive, Trash2, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useFamilyStore } from '@/stores/useFamilyStore';
+
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useEditRequestStore } from '@/stores/useEditRequestStore';
+import { exportToCSV, exportToExcel, exportToPDF, prepareExportData } from '@/utils/exportUtils';
+
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+
+import { LedgerSummary } from './components/LedgerSummary';
+import { LedgerFilters, LedgerFilterState } from './components/LedgerFilters';
+import { LedgerTable } from './components/LedgerTable';
+import { LedgerBulkActions } from './components/LedgerBulkActions';
+import { TransactionDetailsDialog } from './components/TransactionDetailsDialog';
+import { RequestDialog } from './components/RequestDialog';
 
 const PAGE_SIZE = 50;
 
 export function TransactionsPage() {
-  const { transactions, deleteTransaction, archiveTransaction, restoreTransaction } = useTransactionStore();
+  const { transactions, archiveTransaction, restoreTransaction, updateTransaction } = useTransactionStore();
   const { categories } = useCategoryStore();
   const { accounts } = useAccountStore();
-  const { openTransactionModal } = useUIStore();
+  const familyMembers: any[] = [];
 
-  const [filters, setFilters] = useState<FilterState>({
-    search: '', type: 'all', categoryId: 'all', accountId: 'all', status: 'active', startDate: '', endDate: ''
+
+
+  const { currentMember } = useAuthStore();
+  const { openTransactionModal } = useUIStore();
+  const { addEditRequest } = useEditRequestStore();
+  const navigate = useNavigate();
+
+  const [filters, setFilters] = useState<LedgerFilterState>({
+    search: '',
+    type: 'all',
+    categoryId: 'all',
+    accountId: 'all',
+    accountType: 'all',
+    addedBy: 'all',
+    status: 'completed',
+    minAmount: '',
+    maxAmount: '',
+    startDate: '',
+    endDate: '',
+    quickDate: 'all'
   });
-  
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [viewTransactionId, setViewTransactionId] = useState<string | null>(null);
   
-  const [bulkAction, setBulkAction] = useState<'delete' | 'archive' | 'restore' | null>(null);
+  // Request dialog state
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [requestType, setRequestType] = useState<'edit' | 'delete'>('edit');
+  const [requestTransactionId, setRequestTransactionId] = useState('');
+  const [requestTransactionOwner, setRequestTransactionOwner] = useState('');
 
-  // Keyboard Shortcuts
-  useKeyboardShortcut({ key: 'n', ctrlKey: true }, (e) => {
-    e.preventDefault();
-    openTransactionModal();
-  });
-  useKeyboardShortcut({ key: 'f', ctrlKey: true }, (e) => {
-    e.preventDefault();
-    // Focus search (not implemented strictly via ref here, but ideally we'd pass a ref to the search input)
-  });
-  useKeyboardShortcut({ key: 'Delete' }, () => {
-    if (selectedIds.size > 0) setBulkAction('archive');
-  });
+  // 1. Calculate Running Balances (Chronological, Absolute)
+  const runningBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    const sortedAll = [...transactions]
+      .filter(t => !t.isArchived)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Memoized Filtering & Sorting
-  const processedTransactions = useMemo(() => {
+    if (filters.accountId !== 'all') {
+      const acc = accounts.find(a => a.id === filters.accountId);
+      let currentBalance = acc ? acc.openingBalance : 0;
+      
+      sortedAll.forEach(t => {
+        let involved = false;
+        if (t.type === 'income' && t.accountId === filters.accountId) {
+          currentBalance += t.amount;
+          involved = true;
+        } else if (t.type === 'expense' && t.accountId === filters.accountId) {
+          currentBalance -= t.amount;
+          involved = true;
+        } else if (t.type === 'transfer') {
+          if (t.toAccountId === filters.accountId) {
+            currentBalance += t.amount;
+            involved = true;
+          }
+          if (t.fromAccountId === filters.accountId) {
+            currentBalance -= t.amount;
+            involved = true;
+          }
+        }
+        if (involved) {
+          balances[t.id] = currentBalance;
+        }
+      });
+    } else {
+      let currentBalance = accounts.reduce((sum, a) => sum + a.openingBalance, 0);
+      
+      sortedAll.forEach(t => {
+        if (t.type === 'income') {
+          currentBalance += t.amount;
+        } else if (t.type === 'expense') {
+          currentBalance -= t.amount;
+        }
+        balances[t.id] = currentBalance;
+      });
+    }
+    
+    return balances;
+  }, [transactions, accounts, filters.accountId]);
+
+  // 2. Filter & Sort Transactions
+  const filteredTransactions = useMemo(() => {
     return transactions
       .filter(t => {
-        // Status
-        if (filters.status === 'active' && t.isArchived) return false;
-        if (filters.status === 'archived' && !t.isArchived) return false;
-        // Type
+        if (filters.status === 'completed' && t.isArchived) return false;
+        if (filters.status === 'deleted' && !t.isArchived) return false;
+
         if (filters.type !== 'all' && t.type !== filters.type) return false;
-        // Category
+        
         if (filters.categoryId !== 'all' && t.categoryId !== filters.categoryId) return false;
-        // Account
+        
         if (filters.accountId !== 'all') {
           if (t.accountId !== filters.accountId && t.fromAccountId !== filters.accountId && t.toAccountId !== filters.accountId) return false;
         }
-        // Date Range
-        if (filters.startDate && t.date < filters.startDate) return false;
-        if (filters.endDate && t.date > filters.endDate) return false;
-        // Search
+
+        if (filters.accountType !== 'all') {
+          const accs = accounts.filter(a => a.type === filters.accountType).map(a => a.id);
+          if (t.type === 'transfer') {
+            if (!accs.includes(t.fromAccountId || '') && !accs.includes(t.toAccountId || '')) return false;
+          } else {
+            if (!accs.includes(t.accountId || '')) return false;
+          }
+        }
+
+        if (filters.addedBy !== 'all' && t.addedBy !== filters.addedBy) return false;
+
+        if (filters.minAmount !== '' && t.amount < parseFloat(filters.minAmount)) return false;
+        if (filters.maxAmount !== '' && t.amount > parseFloat(filters.maxAmount)) return false;
+
+        if (filters.startDate && new Date(t.date) < new Date(filters.startDate)) return false;
+        if (filters.endDate && new Date(t.date) > new Date(filters.endDate)) return false;
+
         if (filters.search) {
-          const q = filters.search.toLowerCase();
-          const catName = categories.find(c => c.id === t.categoryId)?.name.toLowerCase() || '';
-          const accName = accounts.find(a => a.id === t.accountId)?.name.toLowerCase() || '';
-          if (!t.notes?.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q) && !catName.includes(q) && !accName.includes(q)) {
+          const query = filters.search.toLowerCase();
+          const categoryName = categories.find(c => c.id === t.categoryId)?.name?.toLowerCase() || '';
+          const accountName = accounts.find(a => a.id === t.accountId)?.name?.toLowerCase() || '';
+          const fromAccountName = accounts.find(a => a.id === t.fromAccountId)?.name?.toLowerCase() || '';
+          const toAccountName = accounts.find(a => a.id === t.toAccountId)?.name?.toLowerCase() || '';
+          const addedBy = (t.addedBy || '').toLowerCase();
+          const notes = (t.notes || '').toLowerCase();
+
+          if (
+            !t.id.toLowerCase().includes(query) &&
+            !notes.includes(query) &&
+            !categoryName.includes(query) &&
+            !accountName.includes(query) &&
+            !fromAccountName.includes(query) &&
+            !toAccountName.includes(query) &&
+            !addedBy.includes(query) &&
+            !t.amount.toString().includes(query)
+          ) {
             return false;
           }
         }
+
         return true;
       })
       .sort((a, b) => {
-        let valA: any = a[sortConfig.key as keyof typeof a];
-        let valB: any = b[sortConfig.key as keyof typeof b];
-
-        // Specific resolutions
-        if (sortConfig.key === 'category') {
-          valA = categories.find(c => c.id === a.categoryId)?.name || '';
-          valB = categories.find(c => c.id === b.categoryId)?.name || '';
-        } else if (sortConfig.key === 'account') {
-          valA = accounts.find(acc => acc.id === a.accountId)?.name || '';
-          valB = accounts.find(acc => acc.id === b.accountId)?.name || '';
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff === 0) {
+           return new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime();
         }
-
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+        return dateDiff;
       });
-  }, [transactions, filters, sortConfig, categories, accounts]);
+  }, [transactions, filters, categories, accounts]);
+
+  const openingBalanceForSummary = useMemo(() => {
+    if (filters.accountId !== 'all') {
+      return accounts.find(a => a.id === filters.accountId)?.openingBalance || 0;
+    }
+    return accounts.reduce((sum, a) => sum + a.openingBalance, 0);
+  }, [accounts, filters.accountId]);
 
   // Pagination
-  const totalPages = Math.ceil(processedTransactions.length / PAGE_SIZE);
-  const paginatedTransactions = processedTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
+  const paginatedTransactions = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return filteredTransactions.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredTransactions, currentPage]);
 
-  // Handlers
-  const handleSort = (key: string) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
-
-  const handleSelect = (id: string, selected: boolean) => {
+  const handleSelect = useCallback((id: string, selected: boolean) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (selected) next.add(id);
       else next.delete(id);
       return next;
     });
-  };
+  }, []);
 
-  const handleSelectAll = (selected: boolean) => {
+  const handleSelectAll = useCallback((selected: boolean) => {
     if (selected) {
       setSelectedIds(new Set(paginatedTransactions.map(t => t.id)));
     } else {
       setSelectedIds(new Set());
     }
-  };
+  }, [paginatedTransactions]);
 
-  const executeBulkAction = () => {
-    if (!bulkAction) return;
-    
-    const ids = Array.from(selectedIds);
-    let message = '';
-    let actionFn: (id: string) => void;
-    let undoFn: (id: string) => void;
-
-    if (bulkAction === 'archive') {
-      actionFn = archiveTransaction;
-      undoFn = restoreTransaction;
-      message = `Archived ${ids.length} transactions.`;
-    } else if (bulkAction === 'restore') {
-      actionFn = restoreTransaction;
-      undoFn = archiveTransaction;
-      message = `Restored ${ids.length} transactions.`;
-    } else {
-      actionFn = deleteTransaction;
-      // Undo for hard delete isn't fully possible if state is purged unless we cache it,
-      // but the prompt says "Undo Delete. After archive/delete, display a toast with Undo".
-      // Soft delete is the true "undoable" one natively, hard delete requires caching.
-      // We'll treat bulk 'delete' strictly.
-      message = `Permanently deleted ${ids.length} transactions.`;
-    }
-
-    ids.forEach(id => actionFn(id));
-    
-    if (bulkAction !== 'delete') {
-      toast((t) => (
-        <div className="flex items-center gap-4">
-          <span>{message}</span>
-          <Button size="sm" variant="outline" onClick={() => {
-            ids.forEach(id => undoFn(id));
-            toast.dismiss(t.id);
-            toast.success('Action undone');
-          }}>Undo</Button>
-        </div>
-      ), { duration: 5000 });
-    } else {
-      toast.success(message);
-    }
-
+  const handleBulkDelete = useCallback(() => {
+    Array.from(selectedIds).forEach(id => archiveTransaction(id));
+    toast.success(`Deleted ${selectedIds.size} transactions.`);
     setSelectedIds(new Set());
-    setBulkAction(null);
-  };
+  }, [selectedIds, archiveTransaction]);
+
+  const handleBulkRestore = useCallback(() => {
+    Array.from(selectedIds).forEach(id => restoreTransaction(id));
+    toast.success(`Restored ${selectedIds.size} transactions.`);
+    setSelectedIds(new Set());
+  }, [selectedIds, restoreTransaction]);
+
+  const handleBulkChangeCategory = useCallback((categoryId: string) => {
+    Array.from(selectedIds).forEach(id => updateTransaction(id, { categoryId }));
+    toast.success(`Updated category for ${selectedIds.size} transactions.`);
+    setSelectedIds(new Set());
+  }, [selectedIds, updateTransaction]);
+
+  const handleBulkChangeAccount = useCallback((accountId: string) => {
+    Array.from(selectedIds).forEach(id => {
+      const t = transactions.find(tx => tx.id === id);
+      if (t && t.type !== 'transfer') {
+        updateTransaction(id, { accountId });
+      }
+    });
+    toast.success(`Updated account for non-transfer transactions.`);
+    setSelectedIds(new Set());
+  }, [selectedIds, transactions, updateTransaction]);
+
+  const handleBulkExport = useCallback((format: 'csv'|'excel'|'pdf') => {
+    const dataToExport = filteredTransactions.filter(t => selectedIds.has(t.id));
+    if (dataToExport.length === 0) return;
+
+    const formattedData = prepareExportData(dataToExport, categories, accounts, runningBalances);
+    const filename = `Transactions_Export_${new Date().getTime()}`;
+    
+    if (format === 'csv') exportToCSV(formattedData, filename);
+    else if (format === 'excel') exportToExcel(formattedData, filename);
+    else if (format === 'pdf') {
+      exportToPDF({
+        transactions: dataToExport,
+        categories,
+        accounts,
+        familyMembers: [],
+
+        generatedBy: currentMember || 'User',
+        openingBalance: openingBalanceForSummary,
+        closingBalance: dataToExport.length > 0 
+          ? runningBalances[dataToExport[dataToExport.length - 1].id] || 0 
+          : 0,
+        runningBalances
+      }, filename);
+    }
+    
+    toast.success(`Exported ${dataToExport.length} transactions as ${format.toUpperCase()}`);
+    setSelectedIds(new Set());
+  }, [filteredTransactions, selectedIds, categories, accounts, familyMembers, runningBalances, openingBalanceForSummary, currentMember]);
+
+
+  const handleDuplicate = useCallback((id: string) => {
+    localStorage.setItem('duplicate_txn_id', id);
+    openTransactionModal();
+  }, [openTransactionModal]);
+
+  const handleViewStatement = useCallback((accountId: string) => {
+    navigate(`/accounts/${accountId}/statement`);
+  }, [navigate]);
+
+  const handleExport = useCallback((format: 'csv' | 'excel' | 'pdf') => {
+    if (filteredTransactions.length === 0) {
+      toast.error('No transactions to export.');
+      return;
+    }
+    const formattedData = prepareExportData(filteredTransactions, categories, accounts, runningBalances);
+    const filename = `Ledger_Export_${new Date().getTime()}`;
+    
+    if (format === 'csv') exportToCSV(formattedData, filename);
+    else if (format === 'excel') exportToExcel(formattedData, filename);
+    else if (format === 'pdf') {
+      const pdfFilters = {
+        member: filters.addedBy !== 'all' ? filters.addedBy : undefined,
+        account: filters.accountId !== 'all' 
+          ? accounts.find(a => a.id === filters.accountId)?.name 
+          : undefined,
+        category: filters.categoryId !== 'all' 
+          ? categories.find(c => c.id === filters.categoryId)?.name 
+          : undefined,
+        type: filters.type !== 'all' ? filters.type : undefined,
+        dateRange: (filters.startDate && filters.endDate) 
+          ? { start: new Date(filters.startDate), end: new Date(filters.endDate) } 
+          : undefined
+      };
+      
+      exportToPDF({
+        transactions: filteredTransactions,
+        categories,
+        accounts,
+        familyMembers: [],
+
+        filters: pdfFilters,
+        generatedBy: currentMember || 'User',
+        openingBalance: openingBalanceForSummary,
+        closingBalance: filteredTransactions.length > 0 
+          ? runningBalances[filteredTransactions[0].id] || 0 
+          : 0,
+        runningBalances
+      }, filename);
+    }
+    
+    toast.success(`Exported ${filteredTransactions.length} transactions as ${format.toUpperCase()}`);
+  }, [filteredTransactions, categories, accounts, familyMembers, filters, runningBalances, openingBalanceForSummary, currentMember]);
+
+
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  const handleBulkMarkCleared = useCallback(() => {
+    Array.from(selectedIds).forEach(id => updateTransaction(id, { isCleared: true }));
+    toast.success(`Marked ${selectedIds.size} transactions as cleared.`);
+    setSelectedIds(new Set());
+  }, [selectedIds, updateTransaction]);
+  
+  const handleRequestEdit = useCallback((id: string) => {
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+    setRequestType('edit');
+    setRequestTransactionId(id);
+    setRequestTransactionOwner(transaction.addedBy || 'Unknown');
+    setRequestDialogOpen(true);
+  }, [transactions]);
+  
+  const handleRequestDelete = useCallback((id: string) => {
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+    setRequestType('delete');
+    setRequestTransactionId(id);
+    setRequestTransactionOwner(transaction.addedBy || 'Unknown');
+    setRequestDialogOpen(true);
+  }, [transactions]);
+  
+  const handleRequestSubmit = useCallback((data: { reason: string; priority: any }) => {
+    addEditRequest({
+      transactionId: requestTransactionId,
+      owner: requestTransactionOwner,
+      requestedBy: currentMember || 'Unknown',
+      requestType,
+      reason: data.reason,
+      priority: data.priority,
+    });
+    toast.success(`${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request sent!`);
+  }, [addEditRequest, requestTransactionId, requestTransactionOwner, requestType, currentMember]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Transactions</h1>
-          <p className="text-muted-foreground">View and manage all your financial records.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <div className="flex bg-muted rounded-lg p-1 mr-2 animate-in slide-in-from-right-4">
-              <Button size="sm" variant="ghost" onClick={() => setBulkAction('archive')} className="text-muted-foreground hover:text-primary">
-                <Archive className="w-4 h-4 mr-2" /> Archive
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setBulkAction('restore')} className="text-muted-foreground hover:text-emerald-500">
-                <RotateCcw className="w-4 h-4 mr-2" /> Restore
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setBulkAction('delete')} className="text-muted-foreground hover:text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
-              </Button>
-            </div>
-          )}
-          <Button onClick={() => openTransactionModal()} className="w-full sm:w-auto">
-            <Plus className="w-4 h-4 mr-2" /> Add Transaction
-          </Button>
-        </div>
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      <div className="no-print">
+        <h1 className="text-3xl font-bold text-gradient-emerald-amber">Ledger</h1>
+        <p className="text-muted-foreground">Professional banking-style transactions overview.</p>
       </div>
 
-      <TransactionFilters filters={filters} setFilters={(f) => { setFilters(f); setCurrentPage(1); }} />
+      <div className="no-print">
+        <LedgerSummary 
+          transactions={filteredTransactions} 
+          openingBalance={openingBalanceForSummary} 
+        />
+      </div>
 
-      <TransactionTable 
+      <div className="no-print">
+        <LedgerFilters 
+          filters={filters} 
+          setFilters={(f) => { setFilters(f); setCurrentPage(1); }} 
+          categories={categories} 
+          accounts={accounts} 
+          onExport={handleExport}
+          onPrint={handlePrint}
+        />
+      </div>
+
+      <LedgerTable 
         transactions={paginatedTransactions}
+        categories={categories}
+        accounts={accounts}
+        runningBalances={runningBalances}
         selectedIds={selectedIds}
         onSelect={handleSelect}
         onSelectAll={handleSelectAll}
-        onRowClick={(id) => openTransactionModal(id)}
-        sortConfig={sortConfig}
-        onSort={handleSort}
+        onView={setViewTransactionId}
+        onEdit={(id) => openTransactionModal(id)}
+        onDuplicate={handleDuplicate}
+        onDelete={(id) => { archiveTransaction(id); toast.success('Transaction deleted'); }}
+        onRequestEdit={handleRequestEdit}
+        onRequestDelete={handleRequestDelete}
+        onViewStatement={handleViewStatement}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        currentMemberName={currentMember || null}
       />
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
-          <span className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, processedTransactions.length)} of {processedTransactions.length} results
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="px-4 py-2 text-sm font-medium">{currentPage} / {totalPages}</span>
-            <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <LedgerBulkActions 
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
+        onBulkDelete={handleBulkDelete}
+        onBulkRestore={handleBulkRestore}
+        onBulkChangeCategory={handleBulkChangeCategory}
+        onBulkChangeAccount={handleBulkChangeAccount}
+        onBulkExport={handleBulkExport}
+        onBulkMarkCleared={handleBulkMarkCleared}
+        categories={categories}
+        accounts={accounts}
+      />
 
-      <ConfirmDialog 
-        open={!!bulkAction} 
-        onOpenChange={(open) => !open && setBulkAction(null)}
-        title={`${bulkAction === 'delete' ? 'Delete' : bulkAction === 'archive' ? 'Archive' : 'Restore'} Selected`}
-        description={`Are you sure you want to ${bulkAction} ${selectedIds.size} selected transactions? ${bulkAction === 'delete' ? 'This cannot be undone.' : ''}`}
-        onConfirm={executeBulkAction}
-        variant={bulkAction === 'restore' ? 'default' : 'destructive'}
-        confirmText={bulkAction === 'delete' ? 'Permanently Delete' : 'Confirm'}
+      <TransactionDetailsDialog
+        open={!!viewTransactionId}
+        onOpenChange={(open) => !open && setViewTransactionId(null)}
+        transaction={
+          viewTransactionId
+            ? transactions.find(t => t.id === viewTransactionId) || null
+            : null
+        }
+        categories={categories}
+        accounts={accounts}
+        runningBalance={
+          viewTransactionId
+            ? runningBalances[viewTransactionId] || 0
+            : 0
+        }
+      />
+      <RequestDialog 
+        open={requestDialogOpen}
+        onOpenChange={setRequestDialogOpen}
+        requestType={requestType}
+        transactionId={requestTransactionId}
+        transactionOwner={requestTransactionOwner}
+        onSubmit={handleRequestSubmit}
       />
     </div>
   );

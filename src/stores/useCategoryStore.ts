@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Category } from '@/types';
 import { DEFAULT_CATEGORIES } from '@/constants/defaults';
+import { dbService } from '@/services/firestore/dbService';
 
 interface CategoryState {
   categories: Category[];
@@ -27,6 +28,7 @@ export const useCategoryStore = create<CategoryState>()(
           isDefault: false,
           createdAt: new Date().toISOString(),
         };
+        dbService.save('categories', newCategory.id, newCategory);
         return { categories: [...state.categories, newCategory] };
       }),
       updateCategory: (id, updates) => set((state) => {
@@ -42,19 +44,26 @@ export const useCategoryStore = create<CategoryState>()(
           if (nameExists) throw new Error('Category with this name already exists.');
         }
 
+        const updatedCategory = { ...existing, ...updates };
+        dbService.save('categories', updatedCategory.id, updatedCategory);
+
         return {
-          categories: state.categories.map(cat => cat.id === id ? { ...cat, ...updates } : cat)
+          categories: state.categories.map(cat => cat.id === id ? updatedCategory : cat)
         };
       }),
-      deleteCategory: (id) => set((state) => ({
-        categories: state.categories.filter(cat => cat.id !== id || cat.isDefault)
-      })),
+      deleteCategory: (id) => set((state) => {
+        dbService.delete('categories', id);
+        return { categories: state.categories.filter(cat => cat.id !== id || cat.isDefault) };
+      }),
       initializeDefaults: () => set((state) => {
         if (state.categories.length > 0) return state;
         const defaultCategories = DEFAULT_CATEGORIES.map(cat => ({
           ...cat,
           createdAt: new Date().toISOString(),
         }));
+        
+        defaultCategories.forEach(cat => dbService.save('categories', cat.id, cat));
+        
         return { categories: defaultCategories };
       }),
     }),

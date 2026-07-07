@@ -1,10 +1,10 @@
 import { Transaction } from '@/types';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import { useAccountStore } from '@/stores/useAccountStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { format } from 'date-fns';
 import { ArrowDown, ArrowUp, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { formatCurrency } from '@/utils/currency';
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -27,7 +27,7 @@ export function TransactionTable({
 }: TransactionTableProps) {
   const { categories } = useCategoryStore();
   const { accounts } = useAccountStore();
-  const { currency } = useSettingsStore();
+  // removed unused store
 
   const getCategoryName = (id?: string) => categories.find(c => c.id === id)?.name || '-';
   const getAccountName = (id?: string) => accounts.find(a => a.id === id)?.name || '-';
@@ -117,8 +117,13 @@ export function TransactionTable({
                     ? <span className="flex items-center gap-2 text-xs"><span>{getAccountName(txn.fromAccountId)}</span><ArrowRightLeft className="w-3 h-3"/><span>{getAccountName(txn.toAccountId)}</span></span>
                     : getAccountName(txn.accountId)}
                 </td>
-                <td className="p-4 truncate max-w-[150px] text-muted-foreground" onClick={() => onRowClick(txn.id)}>
-                  {txn.notes || '-'}
+                <td className="p-4 truncate max-w-[200px]" onClick={() => onRowClick(txn.id)}>
+                  <div className="text-muted-foreground">{txn.notes || '-'}</div>
+                  {txn.addedBy && (
+                    <div className="text-[10px] font-medium text-primary/70 mt-0.5">
+                      Added by: {txn.addedBy}
+                    </div>
+                  )}
                 </td>
                 <td className={cn(
                   "p-4 text-right font-semibold",
@@ -127,7 +132,7 @@ export function TransactionTable({
                   "text-muted-foreground"
                 )} onClick={() => onRowClick(txn.id)}>
                   {txn.type === 'expense' ? '-' : txn.type === 'income' ? '+' : ''}
-                  {currency}{txn.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {formatCurrency(txn.amount)}
                 </td>
                 <td className="p-4 text-center" onClick={() => onRowClick(txn.id)}>
                   {txn.isArchived ? (

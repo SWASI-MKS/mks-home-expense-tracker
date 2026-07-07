@@ -14,10 +14,11 @@ export function CSVImport() {
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [openingBalanceStrategy, setOpeningBalanceStrategy] = useState<'keep' | 'replace'>('keep');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { addTransaction, transactions } = useTransactionStore();
-  const { accounts } = useAccountStore();
+  const { accounts, addAccount, updateAccount } = useAccountStore();
   const { categories } = useCategoryStore();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,7 +30,7 @@ export function CSVImport() {
       validateData(data);
       setParsedData(data);
       setIsOpen(true);
-    } catch (err: any) {
+    } catch {
       toast.error('Failed to parse CSV');
     }
     
@@ -80,7 +81,52 @@ export function CSVImport() {
       await new Promise(r => setTimeout(r, 100));
 
       let importedCount = 0;
+      let newAccountsCount = 0;
       const existingIds = transactions.map(t => t.id);
+
+      // Process unique accounts first
+      const accountMap = new Map(accounts.map(a => [a.name.toLowerCase(), a]));
+      
+      for (const row of parsedData) {
+        const accNames = [];
+        if (row.Account) accNames.push(row.Account);
+        if (row['From Account']) accNames.push(row['From Account']);
+        if (row['To Account']) accNames.push(row['To Account']);
+
+        for (const name of accNames) {
+          const lowerName = name.toLowerCase();
+          const csvOpeningBalance = row['Account Opening Balance'] ? parseFloat(row['Account Opening Balance']) : 0;
+          
+          if (!accountMap.has(lowerName)) {
+            // Create new account
+const newAcc = {
+              name,
+              type: 'bank', // default legacy field for backward compatibility
+              accountType: 'bank_account' as const,
+              openingBalance: csvOpeningBalance,
+              description: 'Imported from CSV'
+            };
+
+            // Note: addAccount handles the id generation
+            const tempId = `acc-imported-${Date.now()}-${Math.random()}`;
+            accountMap.set(lowerName, { ...newAcc, id: tempId, isDefault: false, createdAt: new Date().toISOString() } as any);
+            addAccount(newAcc);
+            newAccountsCount++;
+          } else {
+            // Existing account
+            const existing = accountMap.get(lowerName)!;
+            if (row['Account Opening Balance'] !== undefined && openingBalanceStrategy === 'replace') {
+              if (existing.openingBalance !== csvOpeningBalance && !existing.id.startsWith('acc-imported')) {
+                updateAccount(existing.id, { openingBalance: csvOpeningBalance });
+                existing.openingBalance = csvOpeningBalance;
+              }
+            }
+          }
+        }
+      }
+
+      // Re-fetch accounts to get the actual generated IDs
+      const updatedAccounts = useAccountStore.getState().accounts;
 
       for (const row of parsedData) {
         if (!row.Amount && !row.Type && !row.Date) continue; // skip empty
@@ -88,12 +134,11 @@ export function CSVImport() {
         const type = (row.Type || '').toLowerCase() as 'income' | 'expense' | 'transfer';
         if (!['income', 'expense', 'transfer'].includes(type)) continue;
 
-        // Try to match Account and Category by name loosely
-        const account = accounts.find(a => a.name.toLowerCase() === (row.Account || '').toLowerCase());
+        const account = updatedAccounts.find(a => a.name.toLowerCase() === (row.Account || '').toLowerCase());
         const category = categories.find(c => c.name.toLowerCase() === (row.Category || '').toLowerCase());
         
-        const fromAccount = accounts.find(a => a.name.toLowerCase() === (row['From Account'] || '').toLowerCase());
-        const toAccount = accounts.find(a => a.name.toLowerCase() === (row['To Account'] || '').toLowerCase());
+        const fromAccount = updatedAccounts.find(a => a.name.toLowerCase() === (row['From Account'] || '').toLowerCase());
+        const toAccount = updatedAccounts.find(a => a.name.toLowerCase() === (row['To Account'] || '').toLowerCase());
 
         const txn: any = {
           type,
@@ -110,20 +155,17 @@ export function CSVImport() {
           txn.categoryId = category?.id;
         }
 
-        // Generate ID
         txn.id = generateTxnId(existingIds);
-        existingIds.push(txn.id); // Add to local list to prevent collisions in same batch
+        existingIds.push(txn.id);
 
-        // We use the store's addTransaction to handle balances properly
-        // Note: For massive imports, a bulk add is better for performance, but this is safer for now.
         addTransaction(txn);
         importedCount++;
       }
 
-      toast.success(`Successfully imported ${importedCount} transactions`);
+      toast.success(`Imported ${importedCount} transactions and ${newAccountsCount} new accounts.`);
       setIsOpen(false);
       setParsedData([]);
-    } catch (err) {
+    } catch {
       toast.error('An error occurred during import');
     } finally {
       setIsImporting(false);
@@ -201,6 +243,37 @@ export function CSVImport() {
                 </div>
               )}
             </div>
+
+            {parsedData.some(row => row['Account Opening Balance'] !== undefined) && (
+              <div className="p-4 bg-muted/50 rounded-lg border border-border space-y-2">
+                <h4 className="font-medium text-sm">Existing Accounts Opening Balance</h4>
+                <p className="text-xs text-muted-foreground">The CSV contains Opening Balance values. If an account already exists, how should we handle it?</p>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="ob_strategy" 
+                      value="keep" 
+                      checked={openingBalanceStrategy === 'keep'} 
+                      onChange={() => setOpeningBalanceStrategy('keep')} 
+                      className="text-primary"
+                    />
+                    Keep Existing
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="ob_strategy" 
+                      value="replace" 
+                      checked={openingBalanceStrategy === 'replace'} 
+                      onChange={() => setOpeningBalanceStrategy('replace')} 
+                      className="text-primary"
+                    />
+                    Replace with CSV
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="ghost" onClick={() => setIsOpen(false)} disabled={isImporting}>Cancel</Button>

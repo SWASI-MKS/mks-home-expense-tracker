@@ -1,16 +1,88 @@
-import { Account, Category } from '@/types';
+import { Account, Category, AccountType } from '@/types';
 
-export const DEFAULT_ACCOUNTS: Omit<Account, 'balance' | 'createdAt'>[] = [
-  { id: 'acc-cash', name: 'Cash', type: 'cash', isDefault: true },
-  { id: 'acc-bank', name: 'Bank Account', type: 'bank', isDefault: true },
-  { id: 'acc-savings', name: 'Savings Account', type: 'bank', isDefault: true },
-  { id: 'acc-credit', name: 'Credit Card', type: 'credit', isDefault: true },
-  { id: 'acc-debit', name: 'Debit Card', type: 'bank', isDefault: true },
-  { id: 'acc-upi', name: 'UPI', type: 'wallet', isDefault: true },
-  { id: 'acc-gpay', name: 'Google Pay', type: 'wallet', isDefault: true },
-  { id: 'acc-phonepe', name: 'PhonePe', type: 'wallet', isDefault: true },
-  { id: 'acc-paytm', name: 'Paytm Wallet', type: 'wallet', isDefault: true },
+export const DEFAULT_ACCOUNTS: Omit<Account, 'openingBalance' | 'createdAt'>[] = [
+  { id: 'acc-cash', name: 'Cash', type: 'cash', accountType: 'cash_wallet', isDefault: true },
+  { id: 'acc-bank', name: 'Bank Account', type: 'bank', accountType: 'bank_account', isDefault: true },
+  { id: 'acc-savings', name: 'Savings Account', type: 'bank', accountType: 'bank_account', isDefault: true },
+  { id: 'acc-credit', name: 'Credit Card', type: 'credit', accountType: 'credit_card', isDefault: true },
+  { id: 'acc-debit', name: 'Debit Card', type: 'bank', accountType: 'debit_card', isDefault: true },
+  { id: 'acc-upi', name: 'UPI', type: 'wallet', accountType: 'upi_wallet', isDefault: true },
+  { id: 'acc-gpay', name: 'Google Pay', type: 'wallet', accountType: 'upi_wallet', provider: 'GPay', isDefault: true },
+  { id: 'acc-phonepe', name: 'PhonePe', type: 'wallet', accountType: 'upi_wallet', provider: 'PhonePe', isDefault: true },
+  { id: 'acc-paytm', name: 'Paytm Wallet', type: 'wallet', accountType: 'upi_wallet', provider: 'Paytm', isDefault: true },
 ];
+
+export const ACCOUNT_TYPE_INFO: Record<AccountType, {
+  icon: string;
+  label: string;
+  description: string;
+  color: string;
+}> = {
+  bank_account: {
+    icon: '🏦',
+    label: 'Bank Accounts',
+    description: 'Savings, current, and salary accounts',
+    color: 'bg-blue-50 text-blue-700'
+  },
+  credit_card: {
+    icon: '💳',
+    label: 'Credit Cards',
+    description: 'Credit card accounts',
+    color: 'bg-purple-50 text-purple-700'
+  },
+  debit_card: {
+    icon: '💳',
+    label: 'Debit Cards',
+    description: 'Debit card accounts',
+    color: 'bg-cyan-50 text-cyan-700'
+  },
+  upi_wallet: {
+    icon: '📱',
+    label: 'UPI Wallets',
+    description: 'GPay, PhonePe, Paytm, etc.',
+    color: 'bg-emerald-50 text-emerald-700'
+  },
+  cash_wallet: {
+    icon: '💵',
+    label: 'Cash Wallets',
+    description: 'Physical cash accounts',
+    color: 'bg-amber-50 text-amber-700'
+  },
+  investment: {
+    icon: '💰',
+    label: 'Investments',
+    description: 'Stocks, mutual funds, etc.',
+    color: 'bg-violet-50 text-violet-700'
+  },
+  loan: {
+    icon: '🏛',
+    label: 'Loans',
+    description: 'Personal loans, home loans, etc.',
+    color: 'bg-rose-50 text-rose-700'
+  }
+};
+
+// Utility function to map legacy types to new AccountType
+export function mapLegacyTypeToAccountType(legacyType: string): AccountType {
+  const mapping: Record<string, AccountType> = {
+    'cash': 'cash_wallet',
+    'bank': 'bank_account',
+    'credit': 'credit_card',
+    'wallet': 'upi_wallet',
+    'investment': 'investment',
+    'loan': 'loan',
+    'other': 'cash_wallet'
+  };
+  return mapping[legacyType] || 'cash_wallet';
+}
+
+// Extract last 4 digits from a number or string
+export function extractLastFourDigits(input?: string | number): string | undefined {
+  if (!input) return undefined;
+  const str = String(input);
+  const digits = str.replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : undefined;
+}
 
 export const DEFAULT_CATEGORIES: Omit<Category, 'createdAt'>[] = [
   // Income

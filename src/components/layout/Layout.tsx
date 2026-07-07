@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Sidebar } from './Sidebar';
@@ -10,7 +11,14 @@ import { useUIStore } from '@/stores/useUIStore';
 
 export function Layout() {
   useTheme(); // Initialize theme
-  const { openTransactionModal } = useUIStore();
+  const { openTransactionModal, setSidebarCollapsed } = useUIStore();
+
+  useEffect(() => {
+    // Check if tablet on initial load
+    if (window.innerWidth >= 768 && window.innerWidth < 1024) {
+      setSidebarCollapsed(true);
+    }
+  }, [setSidebarCollapsed]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">

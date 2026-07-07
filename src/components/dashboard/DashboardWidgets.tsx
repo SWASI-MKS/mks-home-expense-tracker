@@ -1,22 +1,23 @@
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useCalendarStore } from '@/stores/useCalendarStore';
 import { Card } from '@/components/common/Card';
 import { cn } from '@/utils/cn';
 import { 
   Wallet, TrendingUp, TrendingDown, Target, 
   AlertTriangle, PieChart as PieChartIcon, 
-  Activity, Lightbulb, CreditCard, ArrowUpCircle
+  Activity, Lightbulb, CreditCard, ArrowUpCircle, Bell
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
+import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '@/utils/currency';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export function SummaryCardsWidget() {
   const { summary, budgetStats } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   const cards = [
     { title: 'Net Worth', value: summary.netWorth, icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -27,7 +28,7 @@ export function SummaryCardsWidget() {
 
   const secondaryCards = [
     { title: 'Savings Rate', value: `${summary.savingsRate.toFixed(1)}%`, icon: PieChartIcon, color: 'text-teal-500' },
-    { title: 'Avg Daily Spend', value: `${currency}${summary.avgDailySpend.toFixed(0)}`, icon: Activity, color: 'text-amber-500' },
+    { title: 'Avg Daily Spend', value: `${formatCurrency(Math.round(summary.avgDailySpend))}`, icon: Activity, color: 'text-amber-500' },
     { title: 'Active Budgets', value: budgetStats.active, icon: Target, color: 'text-blue-500' },
     { title: 'Budgets Warning', value: budgetStats.nearLimit + budgetStats.exceeded, icon: AlertTriangle, color: 'text-rose-500' },
   ];
@@ -43,7 +44,7 @@ export function SummaryCardsWidget() {
               </div>
               <span className="text-sm font-medium text-muted-foreground">{c.title}</span>
             </div>
-            <p className="text-2xl font-bold">{currency}{c.value.toLocaleString('en-IN')}</p>
+            <p className="text-2xl font-bold">{formatCurrency(c.value)}</p>
           </Card>
         ))}
       </div>
@@ -64,7 +65,6 @@ export function SummaryCardsWidget() {
 
 export function IncomeExpenseChartWidget() {
   const { timeSeriesData } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   if (timeSeriesData.length === 0) return <EmptyChart message="No data for selected period" />;
 
@@ -74,11 +74,11 @@ export function IncomeExpenseChartWidget() {
         <BarChart data={timeSeriesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `${currency}${val}`} />
+          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `${formatCurrency(val)}`} />
           <Tooltip 
             cursor={{ fill: '#334155', opacity: 0.1 }}
             contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '8px' }}
-            formatter={(value: any) => [`${currency}${Number(value).toLocaleString('en-IN')}`, undefined]}
+            formatter={(value: any) => [`${formatCurrency(Number(value))}`, undefined]}
           />
           <Legend wrapperStyle={{ fontSize: '12px' }} />
           <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -91,7 +91,6 @@ export function IncomeExpenseChartWidget() {
 
 export function CashFlowChartWidget() {
   const { timeSeriesData } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   if (timeSeriesData.length === 0) return <EmptyChart message="No data for selected period" />;
 
@@ -107,10 +106,10 @@ export function CashFlowChartWidget() {
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `${currency}${val}`} />
+          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `${formatCurrency(val)}`} />
           <Tooltip 
             contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '8px' }}
-            formatter={(value: any) => [`${currency}${Number(value).toLocaleString('en-IN')}`, 'Running Balance']}
+            formatter={(value: any) => [`${formatCurrency(Number(value))}`, 'Running Balance']}
           />
           <Area type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorBalance)" />
         </AreaChart>
@@ -121,7 +120,6 @@ export function CashFlowChartWidget() {
 
 export function CategoryBreakdownWidget() {
   const { categoryChartData } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   if (categoryChartData.length === 0) return <EmptyChart message="No expenses to categorize" />;
 
@@ -144,7 +142,7 @@ export function CategoryBreakdownWidget() {
           </Pie>
           <Tooltip 
             contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '8px' }}
-            formatter={(value: any) => [`${currency}${Number(value).toLocaleString('en-IN')}`, 'Amount']}
+            formatter={(value: any) => [`${formatCurrency(Number(value))}`, 'Amount']}
           />
           <Legend wrapperStyle={{ fontSize: '12px' }} layout="vertical" verticalAlign="middle" align="right" />
         </PieChart>
@@ -155,7 +153,7 @@ export function CategoryBreakdownWidget() {
 
 export function AccountDistributionWidget() {
   const { accountChartData } = useDashboardData();
-  const { currency } = useSettingsStore();
+  const navigate = useNavigate();
 
   if (accountChartData.length === 0) return <EmptyChart message="No accounts with balance" />;
 
@@ -170,6 +168,13 @@ export function AccountDistributionWidget() {
             outerRadius={100}
             paddingAngle={1}
             dataKey="value"
+            onClick={(data) => {
+              // Recharts onClick provides data.payload
+              if (data && data.payload && data.payload.id) {
+                navigate(`/accounts/${data.payload.id}/statement`);
+              }
+            }}
+            className="cursor-pointer"
           >
             {accountChartData.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
@@ -177,7 +182,7 @@ export function AccountDistributionWidget() {
           </Pie>
           <Tooltip 
             contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '8px' }}
-            formatter={(value: any) => [`${currency}${Number(value).toLocaleString('en-IN')}`, 'Balance']}
+            formatter={(value: any) => [`${formatCurrency(Number(value))}`, 'Balance']}
           />
           <Legend wrapperStyle={{ fontSize: '12px' }} layout="vertical" verticalAlign="middle" align="right" />
         </PieChart>
@@ -188,7 +193,6 @@ export function AccountDistributionWidget() {
 
 export function BudgetUsageWidget() {
   const { budgetStats } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   if (budgetStats.progresses.length === 0) return <EmptyChart message="No active budgets for this month" />;
 
@@ -201,7 +205,7 @@ export function BudgetUsageWidget() {
         <div key={b.id}>
           <div className="flex justify-between text-sm mb-1">
             <span className="font-medium">{b.name}</span>
-            <span className="text-muted-foreground">{currency}{b.spent.toLocaleString('en-IN')} / {currency}{b.amount.toLocaleString('en-IN')}</span>
+            <span className="text-muted-foreground">{formatCurrency(b.spent)} / {formatCurrency(b.amount)}</span>
           </div>
           <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
             <div 
@@ -217,7 +221,6 @@ export function BudgetUsageWidget() {
 
 export function InsightsWidget() {
   const { summary, accountChartData, timeSeriesData } = useDashboardData();
-  const { currency } = useSettingsStore();
 
   const topAccount = accountChartData.length > 0 ? accountChartData[0] : null;
   const savingsTrend = timeSeriesData.length >= 2 
@@ -243,7 +246,7 @@ export function InsightsWidget() {
           <div>
             <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Primary Account</h4>
             <p className="text-sm text-emerald-600/80 dark:text-emerald-300/80 mt-1">
-              Most of your wealth is stored in <strong>{topAccount.name}</strong> ({currency}{topAccount.value.toLocaleString('en-IN')}).
+              Most of your wealth is stored in <strong>{topAccount.name}</strong> ({formatCurrency(topAccount.value)}).
             </p>
           </div>
         </div>
@@ -266,6 +269,69 @@ function EmptyChart({ message }: { message: string }) {
   return (
     <div className="h-[300px] w-full flex items-center justify-center border-2 border-dashed border-border rounded-xl">
       <span className="text-muted-foreground">{message}</span>
+    </div>
+  );
+}
+
+export function UpcomingRemindersWidget() {
+  const { reminders } = useCalendarStore();
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const pending = reminders.filter(r => r.status !== 'completed');
+  const overdue = pending.filter(r => r.status === 'overdue' || (r.dueDate && new Date(`${r.dueDate}T23:59:59`) < today));
+  const dueToday = pending.filter(r => r.dueDate === today.toISOString().split('T')[0]);
+  const dueTomorrow = pending.filter(r => r.dueDate === tomorrow.toISOString().split('T')[0]);
+
+  const allRelevant = [...overdue, ...dueToday, ...dueTomorrow].slice(0, 5);
+
+  if (allRelevant.length === 0) {
+    return (
+      <div className="h-[300px] flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-border rounded-xl">
+        <Bell className="w-8 h-8 text-muted-foreground/30 mb-2" />
+        <p className="text-sm text-muted-foreground">No upcoming reminders</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 pt-2 h-[300px] overflow-y-auto pr-2">
+      {overdue.length > 0 && (
+        <div className="p-3 bg-rose-50 dark:bg-rose-950/20 rounded-lg border border-rose-100 dark:border-rose-900/30">
+          <p className="text-xs font-bold text-rose-600 dark:text-rose-400 mb-2 flex items-center gap-1 uppercase tracking-wider">
+            <AlertTriangle className="w-3 h-3" /> Overdue
+          </p>
+          <div className="space-y-1">
+            {overdue.slice(0, 2).map(r => (
+              <p key={r.id} className="text-sm font-medium">{r.title}</p>
+            ))}
+            {overdue.length > 2 && <p className="text-xs text-rose-500 font-medium">+{overdue.length - 2} more</p>}
+          </div>
+        </div>
+      )}
+      
+      {dueToday.length > 0 && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900/30">
+          <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-wider">Today</p>
+          <div className="space-y-1">
+            {dueToday.slice(0, 3).map(r => (
+              <p key={r.id} className="text-sm font-medium">{r.title}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {dueTomorrow.length > 0 && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/30">
+          <p className="text-xs font-bold text-amber-600 dark:text-amber-400 mb-2 uppercase tracking-wider">Tomorrow</p>
+          <div className="space-y-1">
+            {dueTomorrow.slice(0, 3).map(r => (
+              <p key={r.id} className="text-sm font-medium">{r.title}</p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
