@@ -85,3 +85,4 @@ Navigate to **Settings > Data Management**. Click "Generate Backup" to download 
 ---
 
 *Designed and built for peak financial clarity.*
+"# mks-home-expense-tracker" 
