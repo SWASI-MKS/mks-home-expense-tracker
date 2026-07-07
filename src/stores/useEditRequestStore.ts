@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { EditRequest } from '@/types';
 import { dbService } from '@/services/firestore/dbService';
 import { useAuthStore } from './useAuthStore';
-import { useNotificationStore } from './useNotificationStore';
 
 interface EditRequestState {
   editRequests: EditRequest[];

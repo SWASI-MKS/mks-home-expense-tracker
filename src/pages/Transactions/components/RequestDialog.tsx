@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,6 @@ import {
   DialogFooter,
 } from '@/components/common/Dialog';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { RequestPriority } from '@/types';
 
 interface RequestDialogProps {

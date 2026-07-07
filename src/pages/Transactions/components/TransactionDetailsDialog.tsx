@@ -170,7 +170,7 @@ export const TransactionDetailsDialog: React.FC<TransactionDetailsDialogProps> =
   const [isDragging, setIsDragging] = useState(false);
   
   // Calculate derived values regardless of transaction (for hooks to work correctly)
-  const relatedTransactions = useMemo(() => {
+  const relatedTransactions = useMemo<Transaction[]>(() => {
     // Find related transactions (simplified implementation)
     return [];
   }, []);

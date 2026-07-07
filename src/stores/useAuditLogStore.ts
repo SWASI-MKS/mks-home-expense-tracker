@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AuditLog } from '@/types';
 import { dbService } from '@/services/firestore/dbService';
-import { useFamilyStore } from './useFamilyStore';
 
 interface AuditLogState {
   auditLogs: AuditLog[];

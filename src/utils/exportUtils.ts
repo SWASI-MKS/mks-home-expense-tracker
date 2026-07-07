@@ -1,7 +1,4 @@
 import { Transaction, Account, Category, FamilyMember } from '@/types';
-import { useBalanceEngine } from '@/hooks/useBalanceEngine';
-
-
 
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -61,7 +58,6 @@ const MARGIN_BOTTOM = 15;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
 const HEADER_HEIGHT = 12;
 const FOOTER_HEIGHT = 12;
-const USABLE_HEIGHT = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
 
 // State management for PDF generation
 interface PDFState {
@@ -220,10 +216,6 @@ function addNewPage(state: PDFState) {
   state.yPos = MARGIN_TOP + HEADER_HEIGHT;
 }
 
-function getRemainingSpace(state: PDFState): number {
-  return PAGE_HEIGHT - MARGIN_BOTTOM - FOOTER_HEIGHT - state.yPos;
-}
-
 // Main PDF export function
 export function exportToPDF(options: PDFExportOptions, filename: string) {
   try {
@@ -231,7 +223,6 @@ export function exportToPDF(options: PDFExportOptions, filename: string) {
       transactions,
       categories,
       accounts,
-      familyMembers,
       filters,
       generatedBy = 'User',
       openingBalance = 0,
@@ -239,7 +230,7 @@ export function exportToPDF(options: PDFExportOptions, filename: string) {
       runningBalances = {}
     } = options;
 
-    const summaries = precomputeSummaries(transactions, categories, accounts, familyMembers);
+    const summaries = precomputeSummaries(transactions, categories, accounts);
     
     const state: PDFState = {
       doc: new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }),
@@ -257,11 +248,11 @@ export function exportToPDF(options: PDFExportOptions, filename: string) {
     drawFooter(state);
 
     // ===== COVER PAGE =====
-    drawCoverPage(state, summaries, filters, openingBalance, closingBalance);
+    drawCoverPage(state, summaries, filters, closingBalance);
     
     // ===== EXECUTIVE SUMMARY =====
     addNewPage(state);
-    drawExecutiveSummary(state, summaries, familyMembers, categories, accounts, openingBalance, closingBalance);
+    drawExecutiveSummary(state, summaries, openingBalance, closingBalance);
     
     // ===== CHARTS =====
     ensurePageSpace(state, 80);
@@ -285,7 +276,7 @@ export function exportToPDF(options: PDFExportOptions, filename: string) {
     
     // ===== ACCOUNT SUMMARY TABLE =====
     ensurePageSpace(state, 80);
-    drawAccountSummaryTable(state, summaries, accounts, transactions);
+    drawAccountSummaryTable(state, accounts, transactions);
     
     // ===== MONTHLY ANALYSIS TABLE =====
     ensurePageSpace(state, 80);
@@ -325,7 +316,7 @@ export function exportToPDF(options: PDFExportOptions, filename: string) {
 }
 
 // Cover Page
-function drawCoverPage(state: PDFState, summaries: any, filters: any, openingBalance: number, closingBalance: number) {
+function drawCoverPage(state: PDFState, summaries: any, filters: any, closingBalance: number) {
   state.yPos = MARGIN_TOP + HEADER_HEIGHT + 15;
   
   // Title
@@ -380,7 +371,7 @@ function drawCoverPage(state: PDFState, summaries: any, filters: any, openingBal
 }
 
 // Executive Summary
-function drawExecutiveSummary(state: PDFState, summaries: any, familyMembers: any[], categories: any[], accounts: any[], openingBalance: number, closingBalance: number) {
+function drawExecutiveSummary(state: PDFState, summaries: any, openingBalance: number, closingBalance: number) {
   state.yPos = MARGIN_TOP + HEADER_HEIGHT + 5;
   
   state.doc.setFontSize(13);
@@ -564,7 +555,7 @@ function drawCharts(state: PDFState, summaries: any) {
     
     const monthlyData = summaries.monthlyData.slice(-6); // Last 6 months
     const monthlyMax = Math.max(
-      ...monthlyData.map(d => Math.max(d.income, d.expense)),
+      ...monthlyData.map((d: { income: number; expense: number }) => Math.max(d.income, d.expense)),
       1
     );
     const monthlyChartHeight = 30;
@@ -849,7 +840,7 @@ function drawMemberSummaryTable(state: PDFState, summaries: any) {
 }
 
 // Account Summary Table
-function drawAccountSummaryTable(state: PDFState, summaries: any, accounts: Account[], transactions: Transaction[], accountBalances?: Record<string, { currentBalance: number }>) {
+function drawAccountSummaryTable(state: PDFState, accounts: Account[], transactions: Transaction[], accountBalances?: Record<string, { currentBalance: number }>) {
 
   state.doc.setFontSize(11);
   state.doc.setFont('helvetica', 'bold');
@@ -1053,7 +1044,7 @@ function drawFinalPage(state: PDFState) {
 }
 
 // Precompute summaries
-function precomputeSummaries(transactions: Transaction[], categories: Category[], accounts: Account[], familyMembers: FamilyMember[]) {
+function precomputeSummaries(transactions: Transaction[], categories: Category[], accounts: Account[]) {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const totalTransfers = transactions.filter(t => t.type === 'transfer').reduce((sum, t) => sum + t.amount, 0);

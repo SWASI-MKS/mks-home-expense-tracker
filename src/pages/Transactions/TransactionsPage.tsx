@@ -3,7 +3,6 @@ import { useTransactionStore } from '@/stores/useTransactionStore';
 import { useCategoryStore } from '@/stores/useCategoryStore';
 import { useAccountStore } from '@/stores/useAccountStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { useFamilyStore } from '@/stores/useFamilyStore';
 
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useEditRequestStore } from '@/stores/useEditRequestStore';
