@@ -1,5 +1,9 @@
 import { useState } from 'react';
+<<<<<<< HEAD
 import { Palette, Globe, Database, LayoutDashboard, Info, Users, Bell, Lock, Activity } from 'lucide-react';
+=======
+import { Palette, Globe, Database, LayoutDashboard, Info, Users, Bell, Lock } from 'lucide-react';
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 import { Card } from '@/components/common/Card';
 import { cn } from '@/utils/cn';
 
@@ -9,9 +13,14 @@ import { DataManagement } from './components/DataManagement';
 import { FamilySettings } from './components/FamilySettings';
 import { NotificationSettings } from './components/NotificationSettings';
 import { SecuritySettings } from './components/SecuritySettings';
+<<<<<<< HEAD
 import { SyncHealth } from './components/SyncHealth';
 
 type Tab = 'appearance' | 'regional' | 'notifications' | 'data' | 'family' | 'dashboard' | 'security' | 'sync_health' | 'about';
+=======
+
+type Tab = 'appearance' | 'regional' | 'notifications' | 'data' | 'family' | 'dashboard' | 'security' | 'about';
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('data'); // Defaulting to data for Phase 7 demonstration
@@ -24,7 +33,10 @@ export function SettingsPage() {
     { id: 'family', label: 'Family Sync', icon: Users },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'security', label: 'Security', icon: Lock },
+<<<<<<< HEAD
     { id: 'sync_health', label: 'Sync Health', icon: Activity },
+=======
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
     { id: 'about', label: 'About', icon: Info },
   ] as const;
 
@@ -85,10 +97,16 @@ export function SettingsPage() {
           {activeTab === 'notifications' && <NotificationSettings />}
           {activeTab === 'data' && <DataManagement />}
           {activeTab === 'family' && <FamilySettings />}
+<<<<<<< HEAD
           {activeTab === 'dashboard' && <DashboardSettings />}
           {activeTab === 'security' && <SecuritySettings />}
           {activeTab === 'sync_health' && <SyncHealth />}
           {activeTab === 'about' && <AboutSection />}
+=======
+          { activeTab === 'dashboard' && <DashboardSettings /> }
+          { activeTab === 'security' && <SecuritySettings /> }
+          { activeTab === 'about' && <AboutSection /> }
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         </div>
       </div>
     </div>

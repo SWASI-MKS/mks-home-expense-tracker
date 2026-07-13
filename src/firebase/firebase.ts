@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { 
+<<<<<<< HEAD
   initializeFirestore, 
+=======
+  getFirestore, 
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
   enableMultiTabIndexedDbPersistence,
   collection,
   doc
@@ -27,9 +31,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+<<<<<<< HEAD
 const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true
 });
+=======
+const db = getFirestore(app);
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 const storage = getStorage(app);
 
 // Enable offline persistence with multi-tab support

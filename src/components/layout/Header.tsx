@@ -4,11 +4,15 @@ import { useUIStore } from '@/stores/useUIStore';
 import { Button } from '@/components/common/Button';
 import { NotificationBell } from './NotificationBell';
 import { useSyncStore } from '@/stores/useSyncStore';
+<<<<<<< HEAD
 import { dbService } from '@/services/firestore/dbService';
+=======
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 
 export function Header() {
   const { theme, setTheme } = useSettingsStore();
   const { openTransactionModal, toggleSidebar, isSidebarCollapsed, setSidebarCollapsed } = useUIStore();
+<<<<<<< HEAD
   const { status, queue, lastSyncedTime, retryFailedOps } = useSyncStore();
   
   const failedOps = queue.filter(op => op.status === 'failed');
@@ -18,6 +22,13 @@ export function Header() {
   console.log('[Header] Current sync status:', status);
   console.log('[Header] Current queue length:', queue.length);
   console.log('[Header] Failed count:', failedCount);
+=======
+  const { status, queue, lastSyncedTime } = useSyncStore();
+  
+  // Debug log to verify Header sees the correct queue length
+  console.log('[Header] Current sync status:', status);
+  console.log('[Header] Current queue length:', queue.length);
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
   console.log('[Header] Queue contents:', queue.map(op => op.id));
 
   const toggleTheme = () => {
@@ -34,6 +45,7 @@ export function Header() {
     }
   };
 
+<<<<<<< HEAD
   const handleRetryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     retryFailedOps();
@@ -50,6 +62,9 @@ export function Header() {
       };
     }
 
+=======
+  const getStatusConfig = () => {
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
     switch (status) {
       case 'synced':
         return {
@@ -106,7 +121,11 @@ export function Header() {
       
       <div className="flex items-center gap-2 md:gap-4">
         {/* Connection Status indicator */}
+<<<<<<< HEAD
         <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl border text-[10px] sm:text-xs leading-tight font-medium ${statusConfig.bgColor} transition-colors duration-300`}>
+=======
+        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border text-[10px] sm:text-xs leading-tight font-medium ${statusConfig.bgColor} transition-colors duration-300`}>
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusConfig.dotColor}`} />
           <div className="flex flex-col text-left">
             <span className="font-semibold">{statusConfig.title}</span>
@@ -114,6 +133,7 @@ export function Header() {
               {statusConfig.subtitle}
             </span>
           </div>
+<<<<<<< HEAD
           {failedCount > 0 && (
             <button 
               onClick={handleRetryClick}
@@ -122,6 +142,8 @@ export function Header() {
               Retry
             </button>
           )}
+=======
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         </div>
 
         <Button onClick={() => openTransactionModal()} className="hidden md:flex" size="sm">

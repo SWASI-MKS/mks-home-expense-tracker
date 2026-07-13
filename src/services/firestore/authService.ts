@@ -1,7 +1,10 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebase/firebase';
 import { useFamilyStore, FamilyMember } from '@/stores/useFamilyStore';
+<<<<<<< HEAD
 import { sanitizeForFirestore } from '@/utils/firestoreUtils';
+=======
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 
 export const authService = {
   getFamilyCode: () => {
@@ -52,8 +55,12 @@ export const authService = {
     if (inputHash === defaultHash) {
       console.log("Password verified"); // Using default
       // Set default hash but with timeout
+<<<<<<< HEAD
       const sanitizedDefault = sanitizeForFirestore({ passwordHash: defaultHash });
       const setDocPromise = setDoc(docRef, sanitizedDefault, { merge: true });
+=======
+      const setDocPromise = setDoc(docRef, { passwordHash: defaultHash }, { merge: true });
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
       const setDocTimeout = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Firestore write timed out after 10 seconds.')), 10000);
       });
@@ -76,8 +83,12 @@ export const authService = {
     const docRef = doc(db, `families/${familyCode}/members`, member);
     const newHash = await authService.hashPassword(newPassword);
 
+<<<<<<< HEAD
     const sanitizedNew = sanitizeForFirestore({ passwordHash: newHash });
     await setDoc(docRef, sanitizedNew, { merge: true });
+=======
+    await setDoc(docRef, { passwordHash: newHash }, { merge: true });
+>>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
     return true;
   }
 };
