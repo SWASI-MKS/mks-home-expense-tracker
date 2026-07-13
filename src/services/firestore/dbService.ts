@@ -10,16 +10,10 @@ import { useSyncStore } from '@/stores/useSyncStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { notificationCenter } from '@/services/notification/notificationCenter';
 import { format } from 'date-fns';
-<<<<<<< HEAD
 import toast from 'react-hot-toast';
 import { sanitizeForFirestore, validateFirestoreData } from '@/utils/firestoreUtils';
 
 let isSyncing = false;
-=======
-
-let isSyncing = false;
-let backoffDelay = 1000;
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 let retryTimeoutId: any = null;
 let consecutiveFailures = 0;
 let hadRepeatedFailures = false;
@@ -38,10 +32,7 @@ export const dbService = {
     console.log(`[dbService.save] CALLED: collection=${collectionName}, id=${id}, timestamp=${new Date().toISOString()}, caller=${caller}`);
     console.log('[dbService.save] Data:', data);
     
-<<<<<<< HEAD
     // Part 4 requirement: Queue should always store the ORIGINAL object.
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
     // Add operation to offline-first queue
     useSyncStore.getState().addOp('save', collectionName, id, data);
     
@@ -82,7 +73,6 @@ export const dbService = {
     let syncStore = getFreshState();
     console.log('[dbService] Initial queue length:', syncStore.queue.length);
     
-<<<<<<< HEAD
     const hasPending = syncStore.queue.some(o => o.status !== 'failed');
     if (!hasPending) {
       if (syncStore.queue.length > 0) {
@@ -91,11 +81,6 @@ export const dbService = {
         syncStore.setStatus('synced');
       }
       console.log('[dbService] No pending items (only failed or empty queue), exiting triggerBackgroundSync');
-=======
-    if (syncStore.queue.length === 0) {
-      syncStore.setStatus('synced');
-      console.log('[dbService] Queue is empty, setting status to synced');
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
       return;
     }
     
@@ -121,7 +106,6 @@ export const dbService = {
       syncStore = getFreshState(); // Get latest state before checking queue
       console.log('[dbService] Loop iteration - current queue length:', syncStore.queue.length);
       
-<<<<<<< HEAD
       // Find the first non-failed pending operation
       const op = syncStore.queue.find(o => o.status !== 'failed');
       if (!op) {
@@ -135,36 +119,20 @@ export const dbService = {
       getFreshState().updateOpState(op.id, { status: 'syncing' });
       const startTime = Date.now();
       
-=======
-      if (syncStore.queue.length === 0) {
-        console.log('[dbService] Queue is empty, breaking loop');
-        break; // Exit if queue is empty
-      }
-      
-      const op = syncStore.queue[0]; // Always process first item
-      console.log('[dbService] Processing operation:', { id: op.id, collection: op.collection, docId: op.docId, type: op.type });
-      
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
       try {
         const docRef = doc(db, `families/${familyCode}/${op.collection}`, op.docId);
         
         if (op.type === 'save') {
-<<<<<<< HEAD
           console.log('[dbService] Sanitizing and validating document for Firestore');
           const sanitizedData = sanitizeForFirestore(op.data);
           validateFirestoreData(op.collection, sanitizedData);
           console.log('[dbService] Saving document to Firestore');
           await setDoc(docRef, sanitizedData, { merge: true });
-=======
-          console.log('[dbService] Saving document to Firestore');
-          await setDoc(docRef, op.data, { merge: true });
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         } else if (op.type === 'delete') {
           console.log('[dbService] Deleting document from Firestore');
           await firestoreDeleteDoc(docRef);
         }
         
-<<<<<<< HEAD
         const duration = Date.now() - startTime;
         console.log('[dbService] Operation successful, removing from queue:', op.id);
         console.log('[dbService] Op details:', { type: op.type, collection: op.collection, docId: op.docId });
@@ -174,21 +142,11 @@ export const dbService = {
         getFreshState().setOpDuration(op.collection, duration);
         getFreshState().setLastSuccessfulSync(op.collection, new Date().toISOString());
         
-=======
-        console.log('[dbService] Operation successful, removing from queue:', op.id);
-        console.log('[dbService] Op details:', { type: op.type, collection: op.collection, docId: op.docId });
-        
-        // Remove from queue upon success
-        getFreshState().removeOp(op.id);
-        
-        backoffDelay = 1000; // Reset backoff delay on successful write
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         consecutiveFailures = 0; // Reset consecutive failures
       } catch (error: any) {
         console.error('[dbService] Failed to sync operation:', op, error);
         
         const isTransient = error.code === 'unavailable' || error.code === 'deadline-exceeded' || !navigator.onLine;
-<<<<<<< HEAD
         const attempt = op.retryCount + 1;
         
         const errorPayload = {
@@ -198,8 +156,6 @@ export const dbService = {
           failedAt: new Date().toISOString(),
           lastAttempt: new Date().toISOString(),
         };
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         
         if (isTransient) {
           consecutiveFailures++;
@@ -214,7 +170,6 @@ export const dbService = {
             syncStore.setInterruptionStartTime(Date.now());
           }
           
-<<<<<<< HEAD
           if (attempt >= 5) {
             // Mark as failed permanently after 5 attempts
             getFreshState().updateOpState(op.id, {
@@ -264,31 +219,6 @@ export const dbService = {
           
           toast.error(`Sync failed for ${op.collection}: ${error.message}`, { id: `sync-fail-${op.id}` });
           
-=======
-          syncStore.setStatus('error');
-          isSyncing = false;
-          
-          // Retry automatically using exponential backoff
-          retryTimeoutId = setTimeout(() => {
-            dbService.triggerBackgroundSync();
-          }, backoffDelay);
-          backoffDelay = Math.min(backoffDelay * 2, 60000); // Caps at 1 minute
-          
-          if (consecutiveFailures === 5) {
-            notificationCenter.dispatch({
-              title: 'System Notice',
-              message: 'Some changes could not be synchronized. Please check your internet connection or contact the administrator.',
-              category: 'SYNC',
-              severity: 'ERROR',
-              member: 'System',
-            });
-          }
-          console.log('[dbService] Scheduling retry in', backoffDelay, 'ms');
-          return; // Stop queue processing on transient network failure
-        } else {
-          // Permanent permission or format error: remove to unblock queue, alert member
-          hadPermanentFailure = true;
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
           notificationCenter.dispatch({
             title: 'Sync Action Rejected',
             message: `Could not save changes to ${op.collection}. Error: ${error.message}`,
@@ -296,12 +226,7 @@ export const dbService = {
             severity: 'WARNING',
             member: 'System',
           });
-<<<<<<< HEAD
           console.log('[dbService] Permanent error, kept in queue as failed:', op.id);
-=======
-          console.log('[dbService] Permanent error, removing operation:', op.id);
-          getFreshState().removeOp(op.id);
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         }
       }
     }
@@ -312,7 +237,6 @@ export const dbService = {
     syncStore = getFreshState();
     console.log('[dbService] Sync loop complete, final queue length:', syncStore.queue.length);
     
-<<<<<<< HEAD
     const finalHasFailed = syncStore.queue.some(o => o.status === 'failed');
     const finalHasPending = syncStore.queue.some(o => o.status !== 'failed');
     
@@ -328,16 +252,6 @@ export const dbService = {
         syncStore.setLastSyncedTime(nowStr);
         console.log('[dbService] All operations synced, status set to synced at', nowStr);
       }
-=======
-    if (syncStore.queue.length > 0) {
-      console.log('[dbService] New operations added during sync, triggering again');
-      dbService.triggerBackgroundSync();
-    } else {
-      syncStore.setStatus('synced');
-      const nowStr = format(new Date(), 'dd MMM yyyy, hh:mm a');
-      syncStore.setLastSyncedTime(nowStr);
-      console.log('[dbService] All operations synced, status set to synced at', nowStr);
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
       
       // If we recovered from repeated/permanent failures or long interruption, publish system notice
       if (hadRepeatedFailures || hadPermanentFailure) {
@@ -372,13 +286,9 @@ export const dbService = {
         
         try {
           const docRef = doc(db, `families/${familyCode}/notifications`, sysNoticeId);
-<<<<<<< HEAD
           // Sanitize system notice write
           const sanitizedNotice = sanitizeForFirestore(sysNotice);
           await setDoc(docRef, sanitizedNotice);
-=======
-          await setDoc(docRef, sysNotice);
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         } catch (err) {
           console.error('Failed to publish system notice:', err);
         }

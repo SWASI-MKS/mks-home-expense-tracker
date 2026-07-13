@@ -12,10 +12,7 @@ import { useSyncStore } from '@/stores/useSyncStore';
 import { useEditRequestStore } from '@/stores/useEditRequestStore';
 import { dbService } from './dbService';
 import { notificationCenter } from '@/services/notification/notificationCenter';
-<<<<<<< HEAD
 import { sanitizeForFirestore } from '@/utils/firestoreUtils';
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 import toast from 'react-hot-toast';
 
 let activeUnsubscribers: (() => void)[] = [];
@@ -23,7 +20,6 @@ let isInitialized = false;
 export let isUpdatingSettingsFromSync = false;
 let lastSyncedSettings: any = null;
 
-<<<<<<< HEAD
 // Keep track of reconciled collections for startup reconciliation (runs once)
 const reconciledCollections = new Set<string>();
 
@@ -55,8 +51,6 @@ export function reconcileCollection<T extends { id: string }>(
   }
 }
 
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
 // Helper to merge cloud data with local pending queue operations
 function mergeCloudAndPending(collectionName: string, cloudData: any[]): any[] {
   const queue = useSyncStore.getState().queue;
@@ -129,10 +123,7 @@ function updateQueueCategoryReferences(oldId: string, newId: string) {
       return {
         ...op,
         docId: newId,
-<<<<<<< HEAD
         documentId: newId,
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         id: op.id.replace(oldId, newId),
         data: op.data ? { ...op.data, id: newId } : null
       };
@@ -272,7 +263,6 @@ export function initializeSync() {
   const currentCode = useFamilyStore.getState().familyCode;
   if (currentCode) {
     startSync(currentCode);
-<<<<<<< HEAD
     
     // Part 12 requirement: Only call triggerBackgroundSync() if queue.length > 0
     const queue = useSyncStore.getState().queue;
@@ -280,8 +270,6 @@ export function initializeSync() {
       console.log('[initializeSync] Startup queue has items, triggering sync');
       dbService.triggerBackgroundSync();
     }
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
   }
 }
 
@@ -304,13 +292,10 @@ export function startSync(familyCode: string) {
     {
       name: 'accounts',
       storeUpdate: (data: any[]) => {
-<<<<<<< HEAD
         // Part 9 requirement: Reconcile Accounts
         const local = useAccountStore.getState().accounts;
         reconcileCollection('accounts', local, data);
         
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         const merged = mergeCloudAndPending('accounts', data);
         useAccountStore.setState({ accounts: merged });
       }
@@ -318,13 +303,10 @@ export function startSync(familyCode: string) {
     {
       name: 'budgets',
       storeUpdate: (data: any[]) => {
-<<<<<<< HEAD
         // Part 9 requirement: Reconcile Budgets
         const local = useBudgetStore.getState().budgets;
         reconcileCollection('budgets', local, data);
         
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         const merged = mergeCloudAndPending('budgets', data);
         useBudgetStore.setState({ budgets: merged });
       }
@@ -332,13 +314,10 @@ export function startSync(familyCode: string) {
     {
       name: 'categories',
       storeUpdate: (data: any[]) => {
-<<<<<<< HEAD
         // Part 9 requirement: Reconcile Categories
         const local = useCategoryStore.getState().categories;
         reconcileCollection('categories', local, data);
         
-=======
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
         const mergedWithPending = mergeCloudAndPending('categories', data);
         const uniqueCategories: any[] = [];
         const seenKeys = new Set<string>();
@@ -369,13 +348,9 @@ export function startSync(familyCode: string) {
                 source: 'System',
                 member: 'System'
               };
-<<<<<<< HEAD
               // Sanitize before setDoc write
               const sanitizedConflict = sanitizeForFirestore(conflictNotice);
               setDoc(doc(db, `families/${familyCode}/notifications`, sysNoticeId), sanitizedConflict).catch(e => {
-=======
-              setDoc(doc(db, `families/${familyCode}/notifications`, sysNoticeId), conflictNotice).catch(e => {
->>>>>>> 537c157641f471374d6fe48b5a726ab2c34e631d
                 console.error("Failed to publish conflict notice:", e);
               });
             }
