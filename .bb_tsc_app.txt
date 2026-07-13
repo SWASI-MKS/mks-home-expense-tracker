@@ -1,0 +1,45 @@
+src/components/layout/NotificationBell.tsx(17,11): error TS6133: 'editRequests' is declared but its value is never read.
+src/components/layout/NotificationBell.tsx(17,45): error TS6133: 'getPendingRequests' is declared but its value is never read.
+src/pages/Accounts/AccountDetailsPage.tsx(10,10): error TS6133: 'useState' is declared but its value is never read.
+src/pages/Accounts/AccountDetailsPage.tsx(11,1): error TS6133: 'Transaction' is declared but its value is never read.
+src/pages/Accounts/AccountDetailsPage.tsx(17,9): error TS6133: 'transactions' is declared but its value is never read.
+src/pages/Accounts/AccountDetailsPage.tsx(18,30): error TS2339: Property 'getAccountTransactions' does not exist on type '{ balanceData: Record<string, AccountBalanceData>; netWorth: number; getAccountBalance: (accountId: string) => AccountBalanceData; }'.
+src/pages/Accounts/AccountDetailsPage.tsx(50,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/pages/Accounts/AccountsPage.tsx(16,1): error TS6133: 'cn' is declared but its value is never read.
+src/pages/Accounts/AccountsPage.tsx(19,29): error TS6133: 'extractLastFourDigits' is declared but its value is never read.
+src/pages/Accounts/AccountsPage.tsx(97,65): error TS6133: 'setValue' is declared but its value is never read.
+src/pages/Settings/components/CSVImport.tsx(111,24): error TS2345: Argument of type '{ name: any; type: string; openingBalance: number; description: string; }' is not assignable to parameter of type 'Omit<Account, "createdAt" | "id" | "isDefault">'.
+  Property 'accountType' is missing in type '{ name: any; type: string; openingBalance: number; description: string; }' but required in type 'Omit<Account, "createdAt" | "id" | "isDefault">'.
+src/pages/Transactions/components/RequestDialog.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/Transactions/components/RequestDialog.tsx(11,1): error TS6133: 'Input' is declared but its value is never read.
+src/pages/Transactions/components/RequestReviewDialog.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/Transactions/components/RequestReviewDialog.tsx(107,30): error TS2339: Property 'categoryName' does not exist on type 'Transaction'.
+src/pages/Transactions/components/RequestReviewDialog.tsx(107,119): error TS2339: Property 'categoryName' does not exist on type 'Transaction'.
+src/pages/Transactions/components/RequestReviewDialog.tsx(109,30): error TS2339: Property 'description' does not exist on type 'Transaction'.
+src/pages/Transactions/components/RequestReviewDialog.tsx(109,121): error TS2339: Property 'description' does not exist on type 'Transaction'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(182,11): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "className" | "style" | "duration" | "ariaProps" | "position" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(196,11): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "className" | "style" | "duration" | "ariaProps" | "position" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(787,36): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(791,90): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(792,48): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(795,98): error TS2339: Property 'id' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(796,105): error TS2339: Property 'date' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(799,88): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(800,34): error TS2339: Property 'type' does not exist on type 'never'.
+src/pages/Transactions/components/TransactionDetailsDialog.tsx(800,94): error TS2339: Property 'amount' does not exist on type 'never'.
+src/pages/Transactions/TransactionsPage.tsx(9,51): error TS6133: 'exportToPDFLegacy' is declared but its value is never read.
+src/pages/Transactions/TransactionsPage.tsx(26,11): error TS2339: Property 'familyMembers' does not exist on type 'FamilyStoreState'.
+src/stores/useAccountStore.ts(26,11): error TS6133: 'get' is declared but its value is never read.
+src/stores/useAccountStore.ts(99,38): error TS6133: 'version' is declared but its value is never read.
+src/stores/useAuditLogStore.ts(5,1): error TS6133: 'useFamilyStore' is declared but its value is never read.
+src/stores/useEditRequestStore.ts(6,1): error TS6133: 'useNotificationStore' is declared but its value is never read.
+src/utils/exportUtils.ts(2,1): error TS6133: 'useBalanceEngine' is declared but its value is never read.
+src/utils/exportUtils.ts(64,7): error TS6133: 'USABLE_HEIGHT' is declared but its value is never read.
+src/utils/exportUtils.ts(223,10): error TS6133: 'getRemainingSpace' is declared but its value is never read.
+src/utils/exportUtils.ts(328,71): error TS6133: 'openingBalance' is declared but its value is never read.
+src/utils/exportUtils.ts(383,64): error TS6133: 'familyMembers' is declared but its value is never read.
+src/utils/exportUtils.ts(383,86): error TS6133: 'categories' is declared but its value is never read.
+src/utils/exportUtils.ts(383,105): error TS6133: 'accounts' is declared but its value is never read.
+src/utils/exportUtils.ts(567,26): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/utils/exportUtils.ts(852,51): error TS6133: 'summaries' is declared but its value is never read.
+src/utils/exportUtils.ts(1056,104): error TS6133: 'familyMembers' is declared but its value is never read.
