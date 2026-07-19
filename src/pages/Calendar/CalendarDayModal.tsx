@@ -14,7 +14,24 @@ import { TransactionTable } from '@/components/tables/TransactionTable';
 import { formatCurrency } from '@/utils/currency';
 import { ImageGallery } from '@/components/common/ImageGallery';
 
-export function CalendarDayModal() {
+function normalizeSearchText(text: string | undefined | null): string {
+  if (!text) return '';
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+interface CalendarDayModalProps {
+  searchQuery?: string;
+  filterCategory?: string;
+  filterPriority?: string;
+  filterStatus?: string;
+  filterHasImages?: boolean;
+  filterRemindersEnabled?: boolean;
+}
+
+export function CalendarDayModal({ 
+  searchQuery, filterCategory, filterPriority, 
+  filterStatus, filterHasImages, filterRemindersEnabled 
+}: CalendarDayModalProps = {}) {
   const { isCalendarDayModalOpen, closeCalendarDayModal, calendarSelectedDate, openTransactionModal } = useUIStore();
   const { transactions } = useTransactionStore();
   const { notes, reminders, events, updateReminder } = useCalendarStore();
@@ -28,13 +45,55 @@ export function CalendarDayModal() {
   const dayData = useMemo(() => {
     if (!calendarSelectedDate) return { txns: [], notes: [], reminders: [], events: [] };
     
-    return {
-      txns: transactions.filter(t => !t.isArchived && isSameDay(new Date(t.date), calendarSelectedDate)),
-      notes: notes.filter(n => n.date === dateStr),
-      reminders: reminders.filter(r => r.dueDate === dateStr),
-      events: events.filter(e => e.date === dateStr) // Simple match, expand for recurrence later
+    const normalizedQuery = normalizeSearchText(searchQuery);
+
+    const matchesSearch = (fields: (string | undefined | null)[]) => {
+      if (!normalizedQuery) return true;
+      const normalizedFields = fields.map(normalizeSearchText).join(' ');
+      return normalizedFields.includes(normalizedQuery);
     };
-  }, [calendarSelectedDate, transactions, notes, reminders, events, dateStr]);
+
+    return {
+      txns: transactions.filter(t => {
+        if (t.isArchived || !isSameDay(new Date(t.date), calendarSelectedDate)) return false;
+        if (normalizedQuery && !matchesSearch([t.type, t.notes, t.addedBy, t.amount.toString(), t.categoryId])) return false;
+        if (filterCategory && t.categoryId !== filterCategory) return false;
+        if (filterHasImages) return false;
+        if (filterRemindersEnabled) return false;
+        return true;
+      }),
+      notes: notes.filter(n => {
+        if (n.date !== dateStr) return false;
+        if (normalizedQuery && !matchesSearch([n.title, n.description, n.addedBy])) return false;
+        if (filterCategory && n.categoryId !== filterCategory) return false;
+        if (filterPriority) return false;
+        if (filterStatus) return false;
+        if (filterHasImages && (!n.images || n.images.length === 0)) return false;
+        if (filterRemindersEnabled) return false;
+        return true;
+      }),
+      reminders: reminders.filter(r => {
+        if (r.dueDate !== dateStr) return false;
+        if (normalizedQuery && !matchesSearch([r.title, r.description, r.addedBy, r.priority, r.status])) return false;
+        if (filterCategory && r.categoryId !== filterCategory) return false;
+        if (filterPriority && r.priority !== filterPriority) return false;
+        if (filterStatus && r.status !== filterStatus) return false;
+        if (filterHasImages && (!r.images || r.images.length === 0)) return false;
+        if (filterRemindersEnabled && !r.notificationEnabled) return false;
+        return true;
+      }),
+      events: events.filter(e => {
+        if (e.date !== dateStr) return false;
+        if (normalizedQuery && !matchesSearch([e.title, e.description, e.addedBy])) return false;
+        if (filterCategory && e.categoryId !== filterCategory) return false;
+        if (filterPriority) return false;
+        if (filterStatus) return false;
+        if (filterHasImages && (!e.images || e.images.length === 0)) return false;
+        if (filterRemindersEnabled) return false;
+        return true;
+      })
+    };
+  }, [calendarSelectedDate, transactions, notes, reminders, events, dateStr, searchQuery, filterCategory, filterPriority, filterStatus, filterHasImages, filterRemindersEnabled]);
 
   const timelineItems = useMemo(() => {
     const items: any[] = [];

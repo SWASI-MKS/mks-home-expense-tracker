@@ -5,16 +5,34 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Ca
 
 interface CalendarUpcomingPanelProps {
   onDateSelect: (date: Date) => void;
+  searchQuery?: string;
 }
 
-export function CalendarUpcomingPanel({ onDateSelect }: CalendarUpcomingPanelProps) {
+function normalizeSearchText(text: string | undefined | null): string {
+  if (!text) return '';
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export function CalendarUpcomingPanel({ onDateSelect, searchQuery }: CalendarUpcomingPanelProps) {
   const { reminders } = useCalendarStore();
 
   const today = new Date();
   const tomorrow = addDays(today, 1);
   const nextWeek = addDays(today, 7);
 
-  const pendingReminders = reminders.filter(r => r.status !== 'completed');
+  const normalizedQuery = normalizeSearchText(searchQuery);
+
+  const matchesSearch = (fields: (string | undefined | null)[]) => {
+    if (!normalizedQuery) return true;
+    const normalizedFields = fields.map(normalizeSearchText).join(' ');
+    return normalizedFields.includes(normalizedQuery);
+  };
+
+  const pendingReminders = reminders.filter(r => {
+    if (r.status === 'completed') return false;
+    if (normalizedQuery && !matchesSearch([r.title, r.description, r.addedBy, r.priority])) return false;
+    return true;
+  });
   
   const overdue = pendingReminders.filter(r => r.status === 'overdue' || (r.dueDate && isPast(new Date(`${r.dueDate}T23:59:59`))));
   const dueToday = pendingReminders.filter(r => r.dueDate === format(today, 'yyyy-MM-dd'));

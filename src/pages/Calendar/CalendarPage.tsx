@@ -329,11 +329,21 @@ export function CalendarPage() {
 
         {/* Upcoming Sidebar */}
         <div className="w-full lg:w-80 flex-shrink-0">
-          <CalendarUpcomingPanel onDateSelect={openCalendarDayModal} />
+          <CalendarUpcomingPanel 
+            onDateSelect={openCalendarDayModal} 
+            searchQuery={searchQuery}
+          />
         </div>
       </div>
 
-      <CalendarDayModal />
+      <CalendarDayModal 
+        searchQuery={searchQuery}
+        filterCategory={filterCategory}
+        filterPriority={filterPriority}
+        filterStatus={filterStatus}
+        filterHasImages={filterHasImages}
+        filterRemindersEnabled={filterRemindersEnabled}
+      />
     </div>
   );
 }
