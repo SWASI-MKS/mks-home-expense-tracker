@@ -153,13 +153,14 @@ export const useImageUploadStore = create<ImageUploadState>((set, get) => ({
         await deleteQueuedImage(item.id);
         set(state => ({ queue: state.queue.filter(i => i.id !== item.id) }));
 
-      } catch (error) {
-        console.error('Image upload failed', error);
+      } catch (error: any) {
+        console.error('Image upload failed:', error);
+        toast.error(`Upload failed for ${item.fileName}: ${error?.message || error?.code || 'Unknown error'}`);
+        
         if (attempt >= 5) {
           const failedItem: QueuedImage = { ...updatedItem, status: 'failed', retryCount: attempt };
           await saveQueuedImage(failedItem);
           set(state => ({ queue: state.queue.map(i => i.id === item.id ? failedItem : i) }));
-          toast.error(`Failed to upload ${item.fileName}`);
         } else {
           const retryItem: QueuedImage = { ...updatedItem, status: 'queued', retryCount: attempt };
           await saveQueuedImage(retryItem);
