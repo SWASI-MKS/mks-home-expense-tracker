@@ -32,14 +32,21 @@ function getDB(): Promise<IDBDatabase> {
 }
 
 export async function saveQueuedImage(image: QueuedImage): Promise<void> {
+  console.log('[IMAGE_DEBUG] saveQueuedImage called for', image.fileName, 'status:', image.status);
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     const request = store.put(image);
     
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      console.log('[IMAGE_DEBUG] saveQueuedImage success for', image.fileName);
+      resolve();
+    };
+    request.onerror = () => {
+      console.error('[IMAGE_DEBUG] saveQueuedImage error for', image.fileName, request.error);
+      reject(request.error);
+    };
   });
 }
 

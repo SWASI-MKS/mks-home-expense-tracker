@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { UploadCloud, X, Image as ImageIcon } from 'lucide-react';
+import { useCallback } from 'react';
+import { UploadCloud, X } from 'lucide-react';
 import { ImageAttachment } from '@/types';
 
 interface ImageUploadProps {
@@ -22,19 +22,26 @@ export function ImageUpload({
   const totalImages = existingImages.length + newFiles.length;
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[IMAGE_DEBUG] handleFileChange triggered. Files:', e.target.files);
     if (!e.target.files?.length) return;
     
     const files = Array.from(e.target.files);
     const validFiles: File[] = [];
     
     for (const file of files) {
-      if (validFiles.length + totalImages >= maxFiles) break;
+      console.log('[IMAGE_DEBUG] processing selected file:', file.name, 'type:', file.type, 'size:', file.size);
+      if (validFiles.length + totalImages >= maxFiles) {
+        console.warn('[IMAGE_DEBUG] Max files limit reached, skipping file:', file.name);
+        break;
+      }
       
       if (!file.type.startsWith('image/')) {
+        console.warn('[IMAGE_DEBUG] File is not an image:', file.name, 'type:', file.type);
         continue;
       }
       
       if (file.size > maxSizeMB * 1024 * 1024) {
+        console.warn('[IMAGE_DEBUG] File size exceeds limit:', file.name, 'size:', file.size, 'limit:', maxSizeMB * 1024 * 1024);
         continue; // Exceeds size
       }
       
@@ -42,6 +49,7 @@ export function ImageUpload({
     }
     
     if (validFiles.length > 0) {
+      console.log('[IMAGE_DEBUG] Calling onFilesChange with:', [...newFiles, ...validFiles]);
       onFilesChange([...newFiles, ...validFiles]);
     }
     
@@ -97,23 +105,33 @@ export function ImageUpload({
           ))}
 
           {/* New Files Preview */}
-          {newFiles.map((file, idx) => (
-            <div key={`new-${idx}`} className="relative group rounded-lg overflow-hidden border border-border bg-card flex items-center justify-center">
-              {/* Note: Object URL could be used here, but keeping it simple for performance */}
-              <div className="flex flex-col items-center p-2 text-center text-xs text-muted-foreground">
-                <ImageIcon className="w-6 h-6 mb-1" />
-                <span className="truncate w-full px-1">{file.name}</span>
-                <span className="text-[10px]">{(file.size / 1024 / 1024).toFixed(1)} MB</span>
+          {newFiles.map((file, idx) => {
+            const objectUrl = URL.createObjectURL(file);
+            return (
+              <div key={`new-${idx}`} className="relative group rounded-lg overflow-hidden border border-border bg-card">
+                <img 
+                  src={objectUrl} 
+                  alt={file.name} 
+                  className="w-full h-24 object-cover" 
+                  onLoad={() => {
+                    // We don't revoke immediately here because re-renders might need it,
+                    // but we can revoke when the image loads to free memory if needed,
+                    // or let browser garbage collect it when objectUrl changes.
+                  }}
+                />
+                <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 text-[9px] text-white truncate text-center">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeNewFile(idx)}
+                  className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => removeNewFile(idx)}
-                className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

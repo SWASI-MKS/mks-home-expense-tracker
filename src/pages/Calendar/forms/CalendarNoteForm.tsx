@@ -50,8 +50,10 @@ export function CalendarNoteForm({ date, initialData, onCancel, onSuccess }: Pro
   });
 
   const onSubmit = async (data: NoteFormValues) => {
+    console.log('[IMAGE_DEBUG] CalendarNoteForm onSubmit triggered with data:', data, 'newFiles:', newFiles);
     try {
       const id = initialData?.id || `note-${Date.now()}`;
+      console.log('[IMAGE_DEBUG] calendar item ID resolved as:', id);
       
       const payload = {
         ...data,
@@ -62,16 +64,21 @@ export function CalendarNoteForm({ date, initialData, onCancel, onSuccess }: Pro
         images: existingImages, // Keep the updated existing images array
       };
 
+      console.log('[IMAGE_DEBUG] Note payload ready to save:', payload);
       if (initialData) {
+        console.log('[IMAGE_DEBUG] Calling updateNote with ID:', id);
         updateNote(id, payload);
         toast.success('Note updated successfully');
       } else {
+        console.log('[IMAGE_DEBUG] Calling addNote');
         addNote(payload as CalendarNote);
         toast.success('Note added successfully');
       }
 
+      console.log('[IMAGE_DEBUG] Enqueuing new images. Count:', newFiles.length);
       // Enqueue new images
       for (const file of newFiles) {
+        console.log('[IMAGE_DEBUG] Enqueuing file:', file.name, 'size:', file.size);
         await enqueueImage({
           id: `img-${Date.now()}-${Math.random().toString(36).substring(2)}`,
           calendarItemId: id,
@@ -80,10 +87,13 @@ export function CalendarNoteForm({ date, initialData, onCancel, onSuccess }: Pro
           fileName: file.name,
           size: file.size,
         });
+        console.log('[IMAGE_DEBUG] Enqueued file successfully inIndexedDB');
       }
 
+      console.log('[IMAGE_DEBUG] Note save logic complete, calling onSuccess');
       onSuccess();
     } catch (error: any) {
+      console.error('[IMAGE_DEBUG] Error in CalendarNoteForm onSubmit:', error);
       toast.error(error.message);
     }
   };

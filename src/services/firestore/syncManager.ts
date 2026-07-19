@@ -264,6 +264,15 @@ export function initializeSync() {
   if (currentCode) {
     startSync(currentCode);
     
+    // Load the image queue from IndexedDB
+    try {
+      import('@/stores/useImageUploadStore').then((mod) => {
+        mod.useImageUploadStore.getState().loadQueue();
+      });
+    } catch (e) {
+      console.error('Failed to load image upload queue during initializeSync', e);
+    }
+    
     // Part 12 requirement: Only call triggerBackgroundSync() if queue.length > 0
     const queue = useSyncStore.getState().queue;
     if (queue.length > 0) {
