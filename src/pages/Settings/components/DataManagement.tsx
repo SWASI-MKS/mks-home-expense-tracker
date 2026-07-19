@@ -3,13 +3,13 @@ import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { 
-  generateBackupJSON, validateBackupJSON, restoreFromBackup, clearAllData,
+  generateBackupJSON, validateBackupJSON, restoreFromBackup,
   exportToCSV, exportToExcel, exportToPDF 
 } from '@/utils/dataManagement';
 import { useTransactionStore } from '@/stores/useTransactionStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { Download, Upload, Trash2, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
+import { Download, Upload, FileText, FileSpreadsheet, FileJson } from 'lucide-react';
 import { CSVImport } from './CSVImport';
 import { notificationCenter } from '@/services/notification/notificationCenter';
 import { useFamilyStore } from '@/stores/useFamilyStore';
@@ -18,7 +18,6 @@ export function DataManagement() {
   const { transactions } = useTransactionStore();
   const { summary } = useDashboardData();
   
-  const [isClearOpen, setIsClearOpen] = useState(false);
   const [isRestoreOpen, setIsRestoreOpen] = useState(false);
   const [restoreData, setRestoreData] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,23 +122,6 @@ export function DataManagement() {
     }
   };
 
-  const handleClearData = () => {
-    clearAllData();
-    setIsClearOpen(false);
-    
-    const member = useFamilyStore.getState().displayName || 'System';
-    notificationCenter.dispatch({
-      title: 'Database Wiped',
-      message: `${member} cleared all application data.`,
-      category: 'SYSTEM',
-      severity: 'WARNING',
-      member,
-      preventEmail: true,
-    });
-    
-    toast.success('All data has been cleared');
-  };
-
   return (
     <div className="space-y-8">
       <div>
@@ -203,19 +185,6 @@ export function DataManagement() {
         </div>
       </div>
 
-      {/* Danger Zone */}
-      <div className="space-y-4 max-w-2xl pt-6">
-        <h4 className="font-medium text-rose-600 border-b border-rose-200 dark:border-rose-900/50 pb-2">Danger Zone</h4>
-        <div className="p-4 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-900/10 flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-rose-600">
-            <Trash2 className="w-5 h-5" />
-            <h5 className="font-semibold">Clear All Data</h5>
-          </div>
-          <p className="text-sm text-rose-600/80">Permanently delete all transactions, accounts, categories, and budgets. This action cannot be undone.</p>
-          <Button variant="destructive" className="mt-2 w-max" onClick={() => setIsClearOpen(true)}>Wipe Application Data</Button>
-        </div>
-      </div>
-
       {/* Restore Dialog */}
       {isRestoreOpen && restoreData && (
         <ConfirmDialog
@@ -232,17 +201,6 @@ export function DataManagement() {
           </Button>
         </ConfirmDialog>
       )}
-
-      {/* Clear Dialog */}
-      <ConfirmDialog
-        open={isClearOpen}
-        onOpenChange={setIsClearOpen}
-        title="Are you absolutely sure?"
-        description="This will permanently delete all your data, including all transactions, accounts, and budgets. Make sure you have exported a backup first!"
-        onConfirm={handleClearData}
-        confirmText="Yes, delete everything"
-        variant="destructive"
-      />
     </div>
   );
 }

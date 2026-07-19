@@ -5,6 +5,10 @@ import { useCalendarStore } from '@/stores/useCalendarStore';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
+import { CalendarEvent } from '@/types';
+import { ImageUpload } from '@/components/common/ImageUpload';
+import { useImageUploadStore } from '@/stores/useImageUploadStore';
 
 const eventSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
@@ -18,28 +22,62 @@ type EventFormValues = z.infer<typeof eventSchema>;
 
 interface Props {
   date: string;
+  initialData?: CalendarEvent;
   onCancel: () => void;
   onSuccess: () => void;
 }
 
-export function CalendarEventForm({ date, onCancel, onSuccess }: Props) {
-  const { addEvent, categories } = useCalendarStore();
+export function CalendarEventForm({ date, initialData, onCancel, onSuccess }: Props) {
+  const { addEvent, updateEvent, categories } = useCalendarStore();
+  const { enqueueImage } = useImageUploadStore();
+  
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState(initialData?.images || []);
   
   const { register, handleSubmit, formState: { errors } } = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
-    defaultValues: { recurrence: 'none' }
+    defaultValues: { 
+      title: initialData?.title || '',
+      description: initialData?.description || '',
+      time: initialData?.time || '',
+      categoryId: initialData?.categoryId || '',
+      recurrence: initialData?.recurrence || 'none' 
+    }
   });
 
-  const onSubmit = (data: EventFormValues) => {
+  const onSubmit = async (data: EventFormValues) => {
     try {
-      addEvent({
+      const id = initialData?.id || `evt-${Date.now()}`;
+      
+      const payload = {
         ...data,
-        id: `evt-${Date.now()}`,
-        date,
-        createdAt: new Date().toISOString(),
-        type: 'event',
-      });
-      toast.success('Event added successfully');
+        id,
+        date: initialData?.date || date,
+        createdAt: initialData?.createdAt || new Date().toISOString(),
+        type: 'event' as const,
+        images: existingImages,
+      };
+
+      if (initialData) {
+        updateEvent(id, payload);
+        toast.success('Event updated successfully');
+      } else {
+        addEvent(payload as CalendarEvent);
+        toast.success('Event added successfully');
+      }
+
+      // Enqueue new images
+      for (const file of newFiles) {
+        await enqueueImage({
+          id: `img-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+          calendarItemId: id,
+          collectionName: 'events',
+          blob: file,
+          fileName: file.name,
+          size: file.size,
+        });
+      }
+
       onSuccess();
     } catch (error: any) {
       toast.error(error.message);
@@ -79,6 +117,16 @@ export function CalendarEventForm({ date, onCancel, onSuccess }: Props) {
           <option value="">None</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+      </div>
+
+      <div className="pt-2">
+        <label className="block text-xs font-medium mb-2">Attachments</label>
+        <ImageUpload 
+          existingImages={existingImages}
+          newFiles={newFiles}
+          onFilesChange={setNewFiles}
+          onRemoveExisting={(id) => setExistingImages(prev => prev.filter(img => img.id !== id))}
+        />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

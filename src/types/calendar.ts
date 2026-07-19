@@ -9,6 +9,17 @@ export interface CalendarCategory {
   isCustom: boolean;
 }
 
+export interface ImageAttachment {
+  id: string;
+  storagePath: string;
+  url: string;
+  thumbnailUrl?: string;
+  fileName: string;
+  size: number;
+  uploadedBy?: string;
+  uploadedAt: string;
+}
+
 export interface CalendarItemBase {
   id: string;
   title: string;
@@ -20,6 +31,7 @@ export interface CalendarItemBase {
   createdAt: string;
   type: 'note' | 'reminder' | 'event';
   addedBy?: string;
+  images?: ImageAttachment[];
 }
 
 export interface CalendarNote extends CalendarItemBase {

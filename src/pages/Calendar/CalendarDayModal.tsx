@@ -12,6 +12,7 @@ import { CalendarReminderForm } from './forms/CalendarReminderForm';
 import { CalendarEventForm } from './forms/CalendarEventForm';
 import { TransactionTable } from '@/components/tables/TransactionTable';
 import { formatCurrency } from '@/utils/currency';
+import { ImageGallery } from '@/components/common/ImageGallery';
 
 export function CalendarDayModal() {
   const { isCalendarDayModalOpen, closeCalendarDayModal, calendarSelectedDate, openTransactionModal } = useUIStore();
@@ -20,6 +21,7 @@ export function CalendarDayModal() {
 
   const [activeTab, setActiveTab] = useState<'timeline' | 'transactions' | 'notes' | 'reminders' | 'events'>('timeline');
   const [formType, setFormType] = useState<'note' | 'reminder' | 'event' | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
 
   const dateStr = calendarSelectedDate ? format(calendarSelectedDate, 'yyyy-MM-dd') : '';
 
@@ -75,58 +77,67 @@ export function CalendarDayModal() {
     if (item.timelineType === 'reminder') {
       const isOverdue = item.status === 'overdue' || (item.status !== 'completed' && item.dueTime && isPast(new Date(`${item.dueDate}T${item.dueTime}`)));
       return (
-        <div key={`rem-${item.id}`} className="flex items-start gap-4 p-3 rounded-lg border border-border bg-card shadow-sm">
-          <button onClick={() => updateReminder(item.id, { status: item.status === 'completed' ? 'pending' : 'completed' })} className="mt-0.5">
-            {item.status === 'completed' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className={cn("font-medium text-sm", item.status === 'completed' && "line-through text-muted-foreground")}>{item.title}</p>
-              {isOverdue && <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">OVERDUE</span>}
-              {item.priority === 'critical' && <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">CRITICAL</span>}
-            </div>
-            {item.description && <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>}
-            <div className="flex items-center gap-3 mt-1">
-              {item.dueTime && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Bell className="w-3 h-3" /> {item.dueTime}</p>}
-              {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+        <div key={`rem-${item.id}`} className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-card shadow-sm cursor-pointer hover:border-primary/50 transition-colors" onClick={() => { setEditingItem(item); setFormType('reminder'); }}>
+          <div className="flex items-start gap-4">
+            <button onClick={(e) => { e.stopPropagation(); updateReminder(item.id, { status: item.status === 'completed' ? 'pending' : 'completed' }) }} className="mt-0.5">
+              {item.status === 'completed' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Circle className="w-5 h-5 text-muted-foreground" />}
+            </button>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className={cn("font-medium text-sm", item.status === 'completed' && "line-through text-muted-foreground")}>{item.title}</p>
+                {isOverdue && <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">OVERDUE</span>}
+                {item.priority === 'critical' && <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">CRITICAL</span>}
+              </div>
+              {item.description && <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>}
+              <div className="flex items-center gap-3 mt-1">
+                {item.dueTime && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Bell className="w-3 h-3" /> {item.dueTime}</p>}
+                {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+              </div>
             </div>
           </div>
+          {item.images && item.images.length > 0 && <ImageGallery images={item.images} />}
         </div>
       );
     }
 
     if (item.timelineType === 'note') {
       return (
-        <div key={`note-${item.id}`} className="flex items-start gap-4 p-3 rounded-lg border border-border bg-amber-50/50 dark:bg-amber-950/10 shadow-sm border-l-4" style={{ borderLeftColor: item.color || '#f59e0b' }}>
-          <div className="p-2 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 mt-0.5">
-            <FileText className="w-4 h-4" />
-          </div>
-          <div className="flex-1">
-            <p className="font-medium text-sm">{item.title}</p>
-            {item.description && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.description}</p>}
-            <div className="flex items-center gap-3 mt-1">
-              {item.time && <p className="text-[10px] text-muted-foreground">{item.time}</p>}
-              {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+        <div key={`note-${item.id}`} className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-amber-50/50 dark:bg-amber-950/10 shadow-sm border-l-4 cursor-pointer hover:border-primary/50 transition-colors" style={{ borderLeftColor: item.color || '#f59e0b' }} onClick={() => { setEditingItem(item); setFormType('note'); }}>
+          <div className="flex items-start gap-4">
+            <div className="p-2 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400 mt-0.5">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm">{item.title}</p>
+              {item.description && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.description}</p>}
+              <div className="flex items-center gap-3 mt-1">
+                {item.time && <p className="text-[10px] text-muted-foreground">{item.time}</p>}
+                {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+              </div>
             </div>
           </div>
+          {item.images && item.images.length > 0 && <ImageGallery images={item.images} />}
         </div>
       );
     }
 
     if (item.timelineType === 'event') {
       return (
-        <div key={`evt-${item.id}`} className="flex items-start gap-4 p-3 rounded-lg border border-border bg-purple-50/50 dark:bg-purple-950/10 shadow-sm border-l-4" style={{ borderLeftColor: item.color || '#a855f7' }}>
-          <div className="p-2 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400 mt-0.5">
-            <CalendarIcon className="w-4 h-4" />
-          </div>
-          <div className="flex-1">
-            <p className="font-medium text-sm">{item.title}</p>
-            {item.description && <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>}
-            <div className="flex items-center gap-3 mt-1">
-              {item.time && <p className="text-[10px] text-muted-foreground">{item.time}</p>}
-              {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+        <div key={`evt-${item.id}`} className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-purple-50/50 dark:bg-purple-950/10 shadow-sm border-l-4 cursor-pointer hover:border-primary/50 transition-colors" style={{ borderLeftColor: item.color || '#a855f7' }} onClick={() => { setEditingItem(item); setFormType('event'); }}>
+          <div className="flex items-start gap-4">
+            <div className="p-2 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400 mt-0.5">
+              <CalendarIcon className="w-4 h-4" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm">{item.title}</p>
+              {item.description && <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>}
+              <div className="flex items-center gap-3 mt-1">
+                {item.time && <p className="text-[10px] text-muted-foreground">{item.time}</p>}
+                {item.addedBy && <p className="text-[10px] font-medium text-primary/70">Added by: {item.addedBy}</p>}
+              </div>
             </div>
           </div>
+          {item.images && item.images.length > 0 && <ImageGallery images={item.images} />}
         </div>
       );
     }
@@ -139,6 +150,7 @@ export function CalendarDayModal() {
       if (!open) {
         closeCalendarDayModal();
         setFormType(null);
+        setEditingItem(null);
         setActiveTab('timeline');
       }
     }}>
@@ -149,7 +161,7 @@ export function CalendarDayModal() {
             {(['timeline', 'transactions', 'notes', 'reminders', 'events'] as const).map(t => (
               <button
                 key={t}
-                onClick={() => { setActiveTab(t); setFormType(null); }}
+                onClick={() => { setActiveTab(t); setFormType(null); setEditingItem(null); }}
                 className={cn(
                   "px-4 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors",
                   activeTab === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
@@ -188,9 +200,9 @@ export function CalendarDayModal() {
           )}
 
           {/* Form Overlays */}
-          {formType === 'note' && <CalendarNoteForm date={dateStr} onCancel={() => setFormType(null)} onSuccess={() => setFormType(null)} />}
-          {formType === 'reminder' && <CalendarReminderForm date={dateStr} onCancel={() => setFormType(null)} onSuccess={() => setFormType(null)} />}
-          {formType === 'event' && <CalendarEventForm date={dateStr} onCancel={() => setFormType(null)} onSuccess={() => setFormType(null)} />}
+          {formType === 'note' && <CalendarNoteForm date={dateStr} initialData={editingItem} onCancel={() => { setFormType(null); setEditingItem(null); }} onSuccess={() => { setFormType(null); setEditingItem(null); }} />}
+          {formType === 'reminder' && <CalendarReminderForm date={dateStr} initialData={editingItem} onCancel={() => { setFormType(null); setEditingItem(null); }} onSuccess={() => { setFormType(null); setEditingItem(null); }} />}
+          {formType === 'event' && <CalendarEventForm date={dateStr} initialData={editingItem} onCancel={() => { setFormType(null); setEditingItem(null); }} onSuccess={() => { setFormType(null); setEditingItem(null); }} />}
 
           {/* Timeline View */}
           {!formType && activeTab === 'timeline' && (

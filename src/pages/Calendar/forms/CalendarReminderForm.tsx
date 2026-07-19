@@ -5,6 +5,10 @@ import { useCalendarStore } from '@/stores/useCalendarStore';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
+import { CalendarReminder } from '@/types';
+import { ImageUpload } from '@/components/common/ImageUpload';
+import { useImageUploadStore } from '@/stores/useImageUploadStore';
 
 const reminderSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
@@ -21,35 +25,67 @@ type ReminderFormValues = z.infer<typeof reminderSchema>;
 
 interface Props {
   date: string;
+  initialData?: CalendarReminder;
   onCancel: () => void;
   onSuccess: () => void;
 }
 
-export function CalendarReminderForm({ date, onCancel, onSuccess }: Props) {
-  const { addReminder, categories } = useCalendarStore();
+export function CalendarReminderForm({ date, initialData, onCancel, onSuccess }: Props) {
+  const { addReminder, updateReminder, categories } = useCalendarStore();
+  const { enqueueImage } = useImageUploadStore();
+  
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState(initialData?.images || []);
   
   const { register, handleSubmit, formState: { errors } } = useForm<ReminderFormValues>({
     resolver: zodResolver(reminderSchema) as any,
     defaultValues: { 
-      priority: 'medium',
-      recurrence: 'none',
-      notificationEnabled: false,
-      notificationOffset: 15
+      title: initialData?.title || '',
+      description: initialData?.description || '',
+      dueTime: initialData?.dueTime || '',
+      priority: initialData?.priority || 'medium',
+      categoryId: initialData?.categoryId || '',
+      recurrence: initialData?.recurrence || 'none',
+      notificationEnabled: initialData?.notificationEnabled || false,
+      notificationOffset: initialData?.notificationOffset || 15
     }
   });
 
-  const onSubmit = (data: ReminderFormValues) => {
+  const onSubmit = async (data: ReminderFormValues) => {
     try {
-      addReminder({
+      const id = initialData?.id || `rem-${Date.now()}`;
+      
+      const payload = {
         ...data,
-        id: `rem-${Date.now()}`,
-        dueDate: date,
-        date: date,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        type: 'reminder',
-      });
-      toast.success('Reminder added successfully');
+        id,
+        dueDate: initialData?.dueDate || date,
+        date: initialData?.date || date,
+        status: initialData?.status || 'pending',
+        createdAt: initialData?.createdAt || new Date().toISOString(),
+        type: 'reminder' as const,
+        images: existingImages,
+      };
+
+      if (initialData) {
+        updateReminder(id, payload as CalendarReminder);
+        toast.success('Reminder updated successfully');
+      } else {
+        addReminder(payload as CalendarReminder);
+        toast.success('Reminder added successfully');
+      }
+
+      // Enqueue new images
+      for (const file of newFiles) {
+        await enqueueImage({
+          id: `img-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+          calendarItemId: id,
+          collectionName: 'reminders',
+          blob: file,
+          fileName: file.name,
+          size: file.size,
+        });
+      }
+
       onSuccess();
     } catch (error: any) {
       toast.error(error.message);
@@ -100,6 +136,16 @@ export function CalendarReminderForm({ date, onCancel, onSuccess }: Props) {
             <option value="yearly">Yearly</option>
           </select>
         </div>
+      </div>
+
+      <div className="pt-2">
+        <label className="block text-xs font-medium mb-2">Attachments</label>
+        <ImageUpload 
+          existingImages={existingImages}
+          newFiles={newFiles}
+          onFilesChange={setNewFiles}
+          onRemoveExisting={(id) => setExistingImages(prev => prev.filter(img => img.id !== id))}
+        />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

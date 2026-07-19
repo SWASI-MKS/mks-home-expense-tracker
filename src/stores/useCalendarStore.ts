@@ -7,6 +7,7 @@ import {
 import { dbService } from '@/services/firestore/dbService';
 import { useFamilyStore } from './useFamilyStore';
 import { notificationCenter } from '@/services/notification/notificationCenter';
+import { useImageUploadStore } from './useImageUploadStore';
 
 // Built-in Default Categories
 const DEFAULT_CATEGORIES: CalendarCategory[] = [
@@ -86,6 +87,10 @@ export const useCalendarStore = create<CalendarState>()(
         return { notes: updatedNotes };
       }),
       deleteNote: (id) => set((state) => {
+        const note = state.notes.find(n => n.id === id);
+        if (note) {
+          useImageUploadStore.getState().cleanupCalendarItemImages(id, note.images);
+        }
         dbService.delete('notes', id);
         return { notes: state.notes.filter(n => n.id !== id) };
       }),
@@ -130,6 +135,9 @@ export const useCalendarStore = create<CalendarState>()(
       }),
       deleteReminder: (id) => set((state) => {
         const reminder = state.reminders.find(r => r.id === id);
+        if (reminder) {
+          useImageUploadStore.getState().cleanupCalendarItemImages(id, reminder.images);
+        }
         dbService.delete('reminders', id);
         
         if (reminder) {
@@ -200,6 +208,10 @@ export const useCalendarStore = create<CalendarState>()(
         return { events: updatedEvents };
       }),
       deleteEvent: (id) => set((state) => {
+        const event = state.events.find(e => e.id === id);
+        if (event) {
+          useImageUploadStore.getState().cleanupCalendarItemImages(id, event.images);
+        }
         dbService.delete('events', id);
         return { events: state.events.filter(e => e.id !== id) };
       }),

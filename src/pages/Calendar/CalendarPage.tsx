@@ -10,13 +10,26 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
   eachDayOfInterval, format, isSameMonth, isToday, addMonths, subMonths
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, Filter } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { formatCurrency } from '@/utils/currency';
+
+function normalizeSearchText(text: string | undefined | null): string {
+  if (!text) return '';
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
 
 export function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Advanced filters
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterHasImages, setFilterHasImages] = useState(false);
+  const [filterRemindersEnabled, setFilterRemindersEnabled] = useState(false);
   
   // Basic filtering for calendar views (optional toggles)
   const [showTxns, setShowTxns] = useState(true);
@@ -26,7 +39,7 @@ export function CalendarPage() {
 
   const { transactions } = useTransactionStore();
   const { openCalendarDayModal } = useUIStore();
-  const { notes, reminders, events, checkOverdueReminders } = useCalendarStore();
+  const { notes, reminders, events, checkOverdueReminders, categories } = useCalendarStore();
 
   useEffect(() => {
     checkOverdueReminders();
@@ -53,10 +66,31 @@ export function CalendarPage() {
       eventsCount: number;
     }>();
     
+    const normalizedQuery = normalizeSearchText(searchQuery);
+
+    const matchesSearch = (fields: (string | undefined | null)[]) => {
+      if (!normalizedQuery) return true;
+      const normalizedFields = fields.map(normalizeSearchText).join(' ');
+      return normalizedFields.includes(normalizedQuery);
+    };
+
     // Transactions
     if (showTxns) {
       transactions.forEach(t => {
         if (t.isArchived) return;
+        
+        // Deep search for transactions
+        if (normalizedQuery && !matchesSearch([
+          t.type, t.notes, t.addedBy, t.amount.toString(), t.categoryId
+        ])) {
+          return;
+        }
+
+        // Apply advanced filters
+        if (filterCategory && t.categoryId !== filterCategory) return;
+        if (filterHasImages) return; // Transactions don't have images yet
+        if (filterRemindersEnabled) return; 
+
         const d = format(new Date(t.date), 'yyyy-MM-dd');
         const existing = map.get(d) || { income: 0, expense: 0, notesCount: 0, remindersCount: 0, eventsCount: 0 };
         if (t.type === 'income') existing.income += t.amount;
@@ -68,7 +102,15 @@ export function CalendarPage() {
     // Notes
     if (showNotes) {
       notes.forEach(n => {
-        if (searchQuery && !n.title.toLowerCase().includes(searchQuery.toLowerCase())) return;
+        if (normalizedQuery && !matchesSearch([n.title, n.description, n.addedBy])) return;
+        
+        // Advanced Filters
+        if (filterCategory && n.categoryId !== filterCategory) return;
+        if (filterPriority) return;
+        if (filterStatus) return;
+        if (filterHasImages && (!n.images || n.images.length === 0)) return;
+        if (filterRemindersEnabled) return;
+
         const existing = map.get(n.date) || { income: 0, expense: 0, notesCount: 0, remindersCount: 0, eventsCount: 0 };
         existing.notesCount += 1;
         map.set(n.date, existing);
@@ -78,17 +120,33 @@ export function CalendarPage() {
     // Reminders
     if (showReminders) {
       reminders.forEach(r => {
-        if (searchQuery && !r.title.toLowerCase().includes(searchQuery.toLowerCase())) return;
+        if (normalizedQuery && !matchesSearch([r.title, r.description, r.addedBy, r.priority, r.status])) return;
+        
+        // Advanced Filters
+        if (filterCategory && r.categoryId !== filterCategory) return;
+        if (filterPriority && r.priority !== filterPriority) return;
+        if (filterStatus && r.status !== filterStatus) return;
+        if (filterHasImages && (!r.images || r.images.length === 0)) return;
+        if (filterRemindersEnabled && !r.notificationEnabled) return;
+
         const existing = map.get(r.dueDate) || { income: 0, expense: 0, notesCount: 0, remindersCount: 0, eventsCount: 0 };
         existing.remindersCount += 1;
         map.set(r.dueDate, existing);
       });
     }
 
-    // Events (Basic mapping, ignores recurrence for now to keep it lightweight on initial render, but can be expanded)
+    // Events
     if (showEvents) {
       events.forEach(e => {
-        if (searchQuery && !e.title.toLowerCase().includes(searchQuery.toLowerCase())) return;
+        if (normalizedQuery && !matchesSearch([e.title, e.description, e.addedBy])) return;
+        
+        // Advanced Filters
+        if (filterCategory && e.categoryId !== filterCategory) return;
+        if (filterPriority) return;
+        if (filterStatus) return;
+        if (filterHasImages && (!e.images || e.images.length === 0)) return;
+        if (filterRemindersEnabled) return;
+
         const existing = map.get(e.date) || { income: 0, expense: 0, notesCount: 0, remindersCount: 0, eventsCount: 0 };
         existing.eventsCount += 1;
         map.set(e.date, existing);
@@ -96,7 +154,7 @@ export function CalendarPage() {
     }
 
     return map;
-  }, [transactions, notes, reminders, events, showTxns, showNotes, showReminders, showEvents, searchQuery]);
+  }, [transactions, notes, reminders, events, showTxns, showNotes, showReminders, showEvents, searchQuery, filterCategory, filterPriority, filterStatus, filterHasImages, filterRemindersEnabled]);
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -108,8 +166,8 @@ export function CalendarPage() {
           <p className="text-muted-foreground">Manage your schedule, bills, and cash flow.</p>
         </div>
         
-        <div className="flex-1 w-full md:max-w-md">
-          <div className="relative">
+        <div className="flex-1 w-full md:max-w-md flex gap-2">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
               placeholder="Search planner..." 
@@ -118,8 +176,62 @@ export function CalendarPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button variant={showFilters ? 'default' : 'outline'} onClick={() => setShowFilters(!showFilters)}>
+            <Filter className="w-4 h-4 mr-2" /> Filters
+          </Button>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <div className="p-4 rounded-lg border border-border bg-card shadow-sm animate-in slide-in-from-top-2 flex flex-wrap gap-4 items-end">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Category</label>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="flex h-9 w-40 rounded-md border border-input bg-background px-3 py-1 text-sm">
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Priority</label>
+            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm">
+              <option value="">Any</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Status (Reminders)</label>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm">
+              <option value="">Any</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-4 ml-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={filterHasImages} onChange={e => setFilterHasImages(e.target.checked)} className="rounded border-input text-primary focus:ring-primary" />
+              Has Images
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={filterRemindersEnabled} onChange={e => setFilterRemindersEnabled(e.target.checked)} className="rounded border-input text-primary focus:ring-primary" />
+              Has Notifications
+            </label>
+            {(filterCategory || filterPriority || filterStatus || filterHasImages || filterRemindersEnabled) && (
+              <Button variant="ghost" size="sm" onClick={() => {
+                setFilterCategory('');
+                setFilterPriority('');
+                setFilterStatus('');
+                setFilterHasImages(false);
+                setFilterRemindersEnabled(false);
+              }} className="h-8 text-xs text-muted-foreground hover:text-foreground">Clear Filters</Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-2">
         <Button variant={showTxns ? 'default' : 'outline'} size="sm" onClick={() => setShowTxns(!showTxns)}>
